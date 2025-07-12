@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Quizzy">
+  <defs>
+    <linearGradient id="quizzy-brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9366f8"/>
+      <stop offset="0.5" stop-color="#7b4ce0"/>
+      <stop offset="1" stop-color="#f0700a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="url(#quizzy-brand)"/>
+
+  <g transform="translate(32 33) scale(1.16) translate(-32 -33)">
+    <!-- Lobes as overlapping circles: keeps the silhouette legible down to 16px. -->
+    <g fill="#ffffff">
+      <circle cx="32" cy="22" r="10"/>
+      <circle cx="23" cy="26" r="9.5"/>
+      <circle cx="41" cy="26" r="9.5"/>
+      <circle cx="20" cy="34" r="8"/>
+      <circle cx="44" cy="34" r="8"/>
+      <circle cx="32" cy="33" r="11"/>
+      <circle cx="26" cy="41" r="7.5"/>
+      <circle cx="38" cy="41" r="7.5"/>
+    </g>
+
+    <!-- Central fissure plus one fold per hemisphere; any more turns to mush when small. -->
+    <g fill="none" stroke="#7b4ce0" stroke-width="3.6" stroke-linecap="round">
+      <path d="M32 13 C 29.5 19, 34.5 25, 32 31 C 29.5 37, 34 41, 32 48"/>
+      <path d="M22.5 23.5 C 18 27, 19 33, 24 35.5"/>
+      <path d="M41.5 23.5 C 46 27, 45 33, 40 35.5"/>
+    </g>
+  </g>
+</svg>
