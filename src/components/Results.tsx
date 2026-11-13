@@ -65,7 +65,8 @@ export default function Results({
 
   const [showReview, setShowReview] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [burst, setBurst] = useState(0);
+  // Fire one confetti burst on mount for a strong round.
+  const [burst] = useState(() => (accuracy >= 0.7 ? 1 : 0));
 
   const shownPoints = useCountUp(points);
   const shownRing = useCountUp(Math.round(accuracy * 100), 1100);
@@ -80,7 +81,6 @@ export default function Results({
 
   useEffect(() => {
     fx("finish");
-    if (accuracy >= 0.7) setBurst((b) => b + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

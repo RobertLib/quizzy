@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useHydrated } from "@/lib/client-state";
 import { fetchQuizQuestions } from "@/lib/quiz-api";
 import { buildDailyQuiz, DAILY_QUESTION_COUNT } from "@/lib/daily";
 import {
@@ -35,8 +36,14 @@ interface ResultState {
 }
 
 export default function Home() {
-  const [profile, setProfile] = useState<Profile>(emptyProfile);
-  const [ready, setReady] = useState(false);
+  const ready = useHydrated();
+  // Stored profile is the baseline; in-session updates override it.
+  const stored = useMemo(
+    () => (ready ? normalizeDailyStreak(loadProfile()) : emptyProfile),
+    [ready]
+  );
+  const [edited, setEdited] = useState<Profile | null>(null);
+  const profile = edited ?? stored;
   const [view, setView] = useState<View>("home");
   const [session, setSession] = useState<QuizSession | null>(null);
   const [resultState, setResultState] = useState<ResultState | null>(null);
@@ -44,11 +51,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = normalizeDailyStreak(loadProfile());
-    setProfile(stored);
-    saveProfile(stored);
-    setReady(true);
-  }, []);
+    if (ready) saveProfile(stored);
+  }, [ready, stored]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -114,7 +118,7 @@ export default function Home() {
         mode: session.mode,
       });
 
-      setProfile(withBadges);
+      setEdited(withBadges);
       saveProfile(withBadges);
       setResultState({
         result,
@@ -164,7 +168,7 @@ export default function Home() {
 
   const handleReset = useCallback(() => {
     resetProfile();
-    setProfile(emptyProfile);
+    setEdited(emptyProfile);
   }, []);
 
   return (
