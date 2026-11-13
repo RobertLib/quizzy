@@ -8,7 +8,13 @@ import type { Achievement } from "@/lib/achievements";
 import { TIER_STYLES } from "@/lib/achievements";
 import { gradeFor, xpFromPoints, type LevelProgress } from "@/lib/scoring";
 import { dailyNumber } from "@/lib/daily";
-import { GRID_EMOJI, correctIn, gridOf, shareUrlFor } from "@/lib/challenge";
+import {
+  GRID_EMOJI,
+  correctIn,
+  gridOf,
+  isChallengeable,
+  shareUrlFor,
+} from "@/lib/challenge";
 import {
   MIN_PLAYS_FOR_STATS,
   betterThan,
@@ -115,7 +121,7 @@ export default function Results({
       ? `Quizzy Daily #${dailyNumber(session.dailyKey)}`
       : "Quizzy";
     const streakPart = bestStreak >= 3 ? ` · 🔥${bestStreak}` : "";
-    const dare = session.dailyKey ? "\nCan you beat me?" : "";
+    const dare = isChallengeable(session, answers) ? "\nCan you beat me?" : "";
     return `${title}\n${squares}\n${correct}/${total} · ${points.toLocaleString()} pts${streakPart}${dare}\n${shareUrlFor(session, answers, points)}`;
   }, [grid, session, answers, correct, total, points, bestStreak]);
 

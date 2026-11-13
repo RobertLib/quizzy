@@ -56,11 +56,11 @@ export const mathematics: BankQuestion[] = [
     type: "multiple",
     difficulty: "medium",
     category: "Mathematics",
-    question: "What is the square root of 144?",
-    correct_answer: "12",
-    incorrect_answers: ["10", "14", "16"],
+    question: "What is the square root of 196?",
+    correct_answer: "14",
+    incorrect_answers: ["12", "13", "16"],
     explanation:
-      "12 × 12 = 144, so √144 = 12. (−12 squared is also 144, but the √ sign denotes the positive root.)",
+      "14 × 14 = 196, so √196 = 14. (−14 squared is also 196, but the √ sign denotes the positive root.)",
   },
   {
     id: "q045",
@@ -250,7 +250,7 @@ export const mathematics: BankQuestion[] = [
     correct_answer: "Equilateral",
     incorrect_answers: ["Isosceles", "Scalene", "Right-angled"],
     explanation:
-      "'Equilateral' means 'equal-sided', and all three of its angles are 60°. An isosceles triangle has two equal sides; a scalene one has none.",
+      "'Equilateral' means 'equal-sided', and all three of its angles are 60°. An isosceles triangle needs only two equal sides (so an equilateral one technically counts too); a scalene one has none.",
   },
   {
     id: "math-007",
@@ -358,7 +358,7 @@ export const mathematics: BankQuestion[] = [
     correct_answer: "1,024",
     incorrect_answers: ["1,000", "512", "2,048"],
     explanation:
-      "Doubling from 2 ten times gives 2, 4, 8, 16, 32, 64, 128, 256, 512, 1,024. That's why a kilobyte was traditionally 1,024 bytes.",
+      "Start at 1 and double ten times: 2, 4, 8, 16, 32, 64, 128, 256, 512, 1,024. That's why a kilobyte was traditionally 1,024 bytes.",
   },
   {
     id: "math-016",

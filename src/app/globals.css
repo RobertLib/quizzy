@@ -33,7 +33,7 @@
   --danger-text: #a1122b;
   --warn: #d97708;
   --warn-soft: #fdf3e4;
-  --streak: #f0700a;
+  --streak: #e96b05; /* white ✓ on it needs 3:1 */
   --gold: #d9a405;
   /* Darker variants for text: the fills above are too light to read on
      white (WCAG AA needs 4.5:1 for small text). */

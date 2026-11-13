@@ -173,13 +173,16 @@ export function buildDailyQuiz(key: string): BankQuestion[] {
 
 /**
  * Questions in dailies whose answers aren't published yet: every day that is
- * "today" somewhere, plus one day of slack so a page cached for up to an hour
- * never shows a set that has just gone live.
+ * "today" somewhere (UTC −1 … +1), plus two days of slack for cached pages.
+ * A page is never served more than `expireTime` (next.config.ts, 12 h) after
+ * it was rendered, which can cross one UTC midnight; the second day covers a
+ * CDN in front adding staleness of its own. Together: safe for pages up to
+ * two days old.
  */
 export function unrevealedDailyIds(now: Date = new Date()): Set<string> {
   const today = utcKey(now);
   const ids = new Set<string>();
-  for (let offset = -1; offset <= 2; offset++) {
+  for (let offset = -1; offset <= 3; offset++) {
     for (const q of buildDailyQuiz(addDays(today, offset))) ids.add(q.id);
   }
   return ids;

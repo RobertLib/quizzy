@@ -25,6 +25,9 @@ interface QuizGameProps {
   session: QuizSession;
   onFinish: (result: FinishedSession) => void;
   onQuit: () => void;
+  /** A link outside the game was tapped: ask before leaving the round. */
+  leaveRequested?: boolean;
+  onCancelLeave?: () => void;
 }
 
 type PowerUp = "fifty" | "time" | "skip";
@@ -38,7 +41,13 @@ const DIFFICULTY_STYLE = {
   hard: "bg-bad-soft text-bad-text ring-1 ring-bad/25",
 } as const;
 
-export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
+export default function QuizGame({
+  session,
+  onFinish,
+  onQuit,
+  leaveRequested = false,
+  onCancelLeave,
+}: QuizGameProps) {
   const { questions, config, mode, dailyKey } = session;
   const { fx } = useSettings();
 
@@ -60,6 +69,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
   });
   const [bonusTime, setBonusTime] = useState(0);
   const [confirmQuit, setConfirmQuit] = useState(false);
+  const showQuit = confirmQuit || leaveRequested;
 
   const question = questions[index];
   const isLast = index === questions.length - 1;
@@ -77,6 +87,15 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
   const startedAtRef = useRef<number>(0);
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTickRef = useRef<number>(99);
+  /**
+   * The last question index answered and advanced from. A timer callback and
+   * a click can both land before React re-renders, each with the same stale
+   * `revealed`; these make the second one a no-op instead of a second answer
+   * or a skipped question.
+   */
+  const answeredRef = useRef(-1);
+  const advancedRef = useRef(-1);
+  const questionRef = useRef<HTMLHeadingElement>(null);
 
   const options = useMemo(() => {
     if (!question) return [];
@@ -96,9 +115,15 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, timed]);
 
+  // Each new question takes focus, so screen readers announce it.
+  useEffect(() => {
+    questionRef.current?.focus({ preventScroll: true });
+  }, [index]);
+
   const commitAnswer = useCallback(
     (choice: string | null, kind: "answer" | "timeout" | "skip") => {
-      if (!question || revealed) return;
+      if (!question || revealed || answeredRef.current === index) return;
+      answeredRef.current = index;
 
       const elapsed = (Date.now() - startedAtRef.current) / 1000;
       const remaining = timed
@@ -150,7 +175,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
       else if (kind === "skip") fx("powerup");
       else fx("wrong");
     },
-    [question, revealed, streak, timeLimit, timed, fx]
+    [question, revealed, index, streak, timeLimit, timed, fx]
   );
 
   useEffect(() => {
@@ -187,14 +212,15 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
       clearTimeout(autoAdvanceRef.current);
       autoAdvanceRef.current = null;
     }
-    if (!revealed) return;
+    if (!revealed || advancedRef.current === index) return;
+    advancedRef.current = index;
 
     if (isLast) {
       finish(answers, points, bestStreak);
       return;
     }
 
-    setIndex((i) => i + 1);
+    setIndex(index + 1);
     setSelected(null);
     setRevealed(false);
     setTimedOut(false);
@@ -202,7 +228,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
     setGain(null);
     setHidden([]);
     setBonusTime(0);
-  }, [revealed, isLast, answers, points, bestStreak, finish]);
+  }, [revealed, index, isLast, answers, points, bestStreak, finish]);
 
   // Correct answers roll on by themselves; misses — and anything with an
   // explanation to read — wait for the player.
@@ -248,7 +274,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
   /* -------------------------------------------------------------- keyboard */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (confirmQuit || !question) return;
+      if (showQuit || !question) return;
       // Leave browser and OS shortcuts alone: Cmd/Ctrl+C must copy, not
       // answer C, and Cmd+1 must switch tabs, not answer A.
       if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
@@ -289,7 +315,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [confirmQuit, question, revealed, options, hidden, commitAnswer, advance]);
+  }, [showQuit, question, revealed, options, hidden, commitAnswer, advance]);
 
   if (!question) {
     return (
@@ -375,6 +401,8 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
             progress={timeFraction}
             size={44}
             stroke={4}
+            // A new question's full clock appears at once, not as a sweep back.
+            instant={clock.forIndex !== index}
             className={
               urgent ? "text-bad" : timeFraction < 0.5 ? "text-warn" : "text-brand"
             }
@@ -435,7 +463,11 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
             )}
           </div>
 
-          <h2 className="text-balance text-xl font-bold leading-snug text-ink sm:text-2xl">
+          <h2
+            ref={questionRef}
+            tabIndex={-1}
+            className="text-balance text-xl font-bold leading-snug text-ink outline-none sm:text-2xl"
+          >
             {question.question}
           </h2>
 
@@ -561,6 +593,9 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
                   hint="Remove wrong answers"
                   emoji="✂️"
                   disabled={used.fifty || question.type === "boolean"}
+                  disabledHint={
+                    used.fifty ? undefined : "50:50 — not for true/false questions"
+                  }
                   onClick={() => activatePowerUp("fifty")}
                 />
                 {timed && (
@@ -597,13 +632,16 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
       </div>
 
       {/* -------------------------------------------------------- quit dialog */}
-      {confirmQuit && (
+      {showQuit && (
         <QuitDialog
           isDaily={mode === "daily"}
           // The clock keeps running — pausing it would hand out free thinking
           // time — so the dialog says how much is left.
           secondsLeft={timed && !revealed ? Math.ceil(timeLeft) : null}
-          onStay={() => setConfirmQuit(false)}
+          onStay={() => {
+            setConfirmQuit(false);
+            onCancelLeave?.();
+          }}
           onLeave={onQuit}
         />
       )}
@@ -681,19 +719,22 @@ function PowerUpButton({
   hint,
   emoji,
   disabled,
+  disabledHint,
   onClick,
 }: {
   label: string;
   hint: string;
   emoji: string;
   disabled: boolean;
+  /** Why it's disabled, when that isn't "already used". */
+  disabledHint?: string;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      title={disabled ? `${label} — already used` : hint}
+      title={disabled ? (disabledHint ?? `${label} — already used`) : hint}
       className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
         disabled
           ? "cursor-not-allowed border-line bg-surface-2 text-subtle opacity-45"

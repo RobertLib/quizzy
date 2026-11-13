@@ -4,6 +4,7 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import SettingsProvider from "@/components/SettingsProvider";
 import { OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/site";
+import { themeScript } from "@/lib/theme-script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -43,12 +44,6 @@ export const metadata: Metadata = {
     images: [OG_IMAGE.url],
   },
 };
-
-/**
- * Applies the stored theme before first paint so there is no light-mode flash.
- * Mirrors the SETTINGS_KEY used by src/lib/storage.ts.
- */
-const themeScript = `(function(){try{var s=localStorage.getItem('quizzy:settings:v1');var t=s?JSON.parse(s).theme:'system';var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 export default function RootLayout({
   children,

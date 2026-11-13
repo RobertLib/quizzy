@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CATEGORIES } from "@/data/categories";
+import CurrentYear from "./ui/CurrentYear";
 
 const Footer = () => (
   <footer className="mx-auto mt-12 max-w-3xl px-1 pb-4">
@@ -70,7 +71,8 @@ const Footer = () => (
           difficulty levels, with a new daily challenge every day.
         </p>
         <p className="mt-4 text-xs text-subtle">
-          © {new Date().getFullYear()} Quizzy · Built by Robert Libsansky
+          © <CurrentYear fallback={new Date().getFullYear()} /> Quizzy · Built by
+          Robert Libsansky
         </p>
       </div>
     </div>

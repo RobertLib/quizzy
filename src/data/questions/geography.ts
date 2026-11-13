@@ -58,7 +58,7 @@ export const geography: BankQuestion[] = [
     question: "Which is the largest of North America's Great Lakes by surface area?",
     correct_answer: "Lake Superior",
     incorrect_answers: ["Lake Michigan", "Lake Huron", "Lake Erie"],
-    explanation: "Lake Superior covers about 82,000 km², making it the largest freshwater lake in the world by surface area.",
+    explanation: "Lake Superior covers about 82,000 km², the largest freshwater lake in the world by surface area — unless Lakes Michigan and Huron, which are joined, are counted as one.",
   },
   {
     id: "q043",
@@ -123,11 +123,11 @@ export const geography: BankQuestion[] = [
     id: "q088",
     since: LEGACY,
     type: "multiple",
-    difficulty: "hard",
+    difficulty: "medium",
     category: "Geography",
-    question: "Which country is both the flattest and the driest inhabited continent?",
+    question: "Which is both the flattest and the driest inhabited continent?",
     correct_answer: "Australia",
-    incorrect_answers: ["Namibia", "Mongolia", "Chile"],
+    incorrect_answers: ["Africa", "South America", "Asia"],
     explanation:
       "Only uninhabited Antarctica is drier, and Australia's average elevation of about 330 m is the lowest of any continent.",
   },
@@ -437,11 +437,11 @@ export const geography: BankQuestion[] = [
     type: "multiple",
     difficulty: "medium",
     category: "Geography",
-    question: "Which sea is the only one in the world without a land coastline?",
+    question: "Which sea is the only one in the world with no land boundaries?",
     correct_answer: "The Sargasso Sea",
     incorrect_answers: ["The Coral Sea", "The Weddell Sea", "The Tasman Sea"],
     explanation:
-      "Bounded by four ocean currents in the North Atlantic instead of land, it's named after the Sargassum seaweed that floats on its surface.",
+      "Its edges are set by four North Atlantic ocean currents rather than by coasts (Bermuda lies within it). It's named after the Sargassum seaweed that floats on its surface.",
   },
   {
     id: "geo-022",

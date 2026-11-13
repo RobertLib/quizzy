@@ -22,6 +22,13 @@ export interface HistoryEntry {
   dailyKey?: string;
 }
 
+/** How the player did on one day's daily. */
+export interface DailyResult {
+  correct: number;
+  total: number;
+  points: number;
+}
+
 export interface Profile {
   xp: number;
   totalPoints: number;
@@ -40,6 +47,12 @@ export interface Profile {
   dailyLastPlayed: string | null;
   /** Days whose daily was started on the day — each counts once. */
   dailyCompleted: string[];
+  /**
+   * Every daily the player has started — on the day or from the archive —
+   * keyed by its date; null until the round is finished. One small entry per
+   * day, so unlike `history` it is never trimmed.
+   */
+  dailyResults: Record<string, DailyResult | null>;
   history: HistoryEntry[];
 }
 
@@ -68,6 +81,7 @@ export const emptyProfile: Profile = {
   dailyBestStreak: 0,
   dailyLastPlayed: null,
   dailyCompleted: [],
+  dailyResults: {},
   history: [],
 };
 
@@ -178,17 +192,27 @@ export function saveSettings(settings: Settings) {
 /* ------------------------------------------------------------------- dailies */
 
 /**
- * Starting today's daily uses it up: the streak counts from here, and a
- * reload or a quit can only replay it as practice.
+ * Starting any day's daily uses it up: a reload or a quit can only replay it
+ * as practice.
+ */
+export function markDailyStarted(profile: Profile, key: string): Profile {
+  if (key in profile.dailyResults) return profile;
+  return { ...profile, dailyResults: { ...profile.dailyResults, [key]: null } };
+}
+
+/**
+ * Starting today's daily also counts towards the streak, from this moment —
+ * not from the finish.
  */
 export function markDailyPlayed(profile: Profile, key: string): Profile {
-  if (profile.dailyCompleted.includes(key)) return profile;
+  const started = markDailyStarted(profile, key);
+  if (profile.dailyCompleted.includes(key)) return started;
   const last = profile.dailyLastPlayed;
-  if (last && last > key) return profile;
+  if (last && last > key) return started;
 
   const dailyStreak = last === addDays(key, -1) ? profile.dailyStreak + 1 : 1;
   return {
-    ...profile,
+    ...started,
     dailyStreak,
     dailyLastPlayed: key,
     dailyBestStreak: Math.max(profile.dailyBestStreak, dailyStreak),
@@ -200,19 +224,26 @@ export function markDailyPlayed(profile: Profile, key: string): Profile {
 export function dailyResultFor(
   profile: Profile,
   key: string
-): HistoryEntry | undefined {
+): DailyResult | undefined {
+  const recorded = profile.dailyResults[key];
+  if (recorded) return recorded;
+  // Profiles from before `dailyResults` existed only have the (trimmed)
+  // history; entries older still lack `dailyKey`, and the local date they
+  // were played on is the day of the daily.
   return profile.history.find(
     (entry) =>
       (entry.dailyKey ??
-        // Entries saved before `dailyKey` existed: the local date they were
-        // played on is the day of the daily.
         (entry.mode === "daily" ? keyFrom(new Date(entry.date)) : undefined)) === key
   );
 }
 
-/** True once a day's daily has been played — replays are practice. */
+/** True once a day's daily has been started — replays are practice. */
 export function hasPlayedDaily(profile: Profile, key: string): boolean {
-  return profile.dailyCompleted.includes(key) || dailyResultFor(profile, key) !== undefined;
+  return (
+    key in profile.dailyResults ||
+    profile.dailyCompleted.includes(key) ||
+    dailyResultFor(profile, key) !== undefined
+  );
 }
 
 /* ------------------------------------------------------------------ sessions */
@@ -270,6 +301,10 @@ export function applySession(profile: Profile, session: SessionSummary): Profile
     fastAnswers,
     hardCorrect,
     categories,
+    dailyResults:
+      dailyKey && !profile.dailyResults[dailyKey]
+        ? { ...profile.dailyResults, [dailyKey]: { correct, total, points } }
+        : profile.dailyResults,
     history: [entry, ...profile.history].slice(0, 30),
   };
 }

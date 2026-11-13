@@ -234,6 +234,7 @@ export default function QuizConfigPanel() {
                   return (
                     <button
                       key={category.name}
+                      aria-pressed={active}
                       onClick={() => toggleCategory(category.name)}
                       className={`flex items-center gap-1.5 rounded-xl border-2 px-3 py-2 text-xs font-semibold transition active:scale-95 ${
                         active
@@ -265,6 +266,7 @@ export default function QuizConfigPanel() {
                   return (
                     <button
                       key={option.value}
+                      aria-pressed={active}
                       onClick={() => patch({ difficulty: option.value })}
                       className={`rounded-xl border-2 px-3 py-2.5 text-sm font-bold transition active:scale-95 ${
                         active
@@ -293,6 +295,7 @@ export default function QuizConfigPanel() {
                   return (
                     <button
                       key={length}
+                      aria-pressed={active}
                       onClick={() => patch({ amount: length })}
                       className={`tnum min-w-14 rounded-xl border-2 px-4 py-2.5 text-sm font-bold transition active:scale-95 ${
                         active
@@ -371,6 +374,7 @@ function PaceOption({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={`rounded-xl border-2 p-3.5 text-left transition active:scale-[0.98] ${
         active
           ? "border-brand bg-brand-soft"

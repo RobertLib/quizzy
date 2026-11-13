@@ -72,12 +72,12 @@ export const entertainment: BankQuestion[] = [
     id: "q055",
     since: LEGACY,
     type: "boolean",
-    difficulty: "easy",
+    difficulty: "medium",
     category: "Entertainment",
-    question: "Mickey Mouse was created by Walt Disney.",
+    question: "Walt Disney was the original voice of Mickey Mouse.",
     correct_answer: "True",
     incorrect_answers: ["False"],
-    explanation: "Walt Disney created Mickey in 1928 together with animator Ub Iwerks, and Walt himself provided Mickey's voice until 1947.",
+    explanation: "Walt voiced Mickey from 1928 until 1947. He created the character with animator Ub Iwerks, who did the original drawings.",
   },
   {
     id: "q118",
@@ -154,7 +154,7 @@ export const entertainment: BankQuestion[] = [
     question: "The Simpsons has aired for more than thirty seasons.",
     correct_answer: "True",
     incorrect_answers: ["False"],
-    explanation: "First aired as a half-hour series in December 1989, it began its 31st season in 2019 and is the longest-running American animated series.",
+    explanation: "First aired as a half-hour series in December 1989, it has run every year since and is the longest-running American animated series — and scripted primetime series.",
   },
   {
     id: "q125",
@@ -231,7 +231,7 @@ export const entertainment: BankQuestion[] = [
     question: "In the 1939 film 'The Wizard of Oz', what colour are Dorothy's magic slippers?",
     correct_answer: "Ruby red",
     incorrect_answers: ["Silver", "Emerald green", "Gold"],
-    explanation: "In L. Frank Baum's 1900 novel the shoes are silver; the filmmakers made them ruby to show off the film's vivid Technicolor.",
+    explanation: "The filmmakers picked ruby to show off the film's vivid Technicolor; one of the surviving pairs is on display at the Smithsonian in Washington, D.C.",
   },
   {
     id: "ent-007",

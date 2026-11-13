@@ -75,6 +75,7 @@ export default function StatsPanel() {
             {(["stats", "badges"] as const).map((option) => (
               <button
                 key={option}
+                aria-pressed={tab === option}
                 onClick={() => {
                   fx("select");
                   setTab(option);

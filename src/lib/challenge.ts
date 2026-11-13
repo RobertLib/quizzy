@@ -56,13 +56,28 @@ export function challengePath(key: string, challenge: Challenge): string {
 
 export const GRID_EMOJI: Record<string, string> = { g: "🟩", y: "🟨", r: "🟥" };
 
+/** Whether a finished round can be sent to a friend as a score to beat. */
+export function isChallengeable(session: QuizSession, answers: QuizAnswer[]): boolean {
+  // A practice replay was played knowing the answers, so its score proves nothing.
+  return (
+    !!session.dailyKey &&
+    session.mode !== "practice" &&
+    answers.length === DAILY_QUESTION_COUNT
+  );
+}
+
 /**
  * Where a shared result should send the friend who taps it: the same daily
- * (as a head-to-head challenge), or the topic page the quiz was about.
+ * (as a head-to-head challenge, or just the day after a practice replay), or
+ * the topic page the quiz was about.
  */
 export function shareUrlFor(session: QuizSession, answers: QuizAnswer[], points: number): string {
-  if (session.dailyKey && answers.length === DAILY_QUESTION_COUNT) {
-    return absoluteUrl(challengePath(session.dailyKey, { grid: gridOf(answers), points }));
+  if (session.dailyKey) {
+    return absoluteUrl(
+      isChallengeable(session, answers)
+        ? challengePath(session.dailyKey, { grid: gridOf(answers), points })
+        : `/daily/${session.dailyKey}`
+    );
   }
   if (session.config.categories.length === 1) {
     const category = categoryByName(session.config.categories[0]);

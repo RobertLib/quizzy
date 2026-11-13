@@ -26,11 +26,15 @@ export default function QuestionList({
   questions,
   showCategory = false,
   start = 1,
+  headingLevel = 3,
 }: {
   questions: QuizQuestion[];
   showCategory?: boolean;
   start?: number;
+  /** Level of each question's heading: one below the list's own heading. */
+  headingLevel?: 3 | 4;
 }) {
+  const Heading = headingLevel === 4 ? "h4" : "h3";
   return (
     <ol className="space-y-2.5" start={start}>
       {questions.map((question, index) => (
@@ -48,9 +52,9 @@ export default function QuestionList({
               {question.difficulty}
             </span>
           </div>
-          <h3 className="text-[0.95rem] font-semibold leading-snug text-ink">
+          <Heading className="text-[0.95rem] font-semibold leading-snug text-ink">
             {question.question}
-          </h3>
+          </Heading>
           <ul className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted">
             {optionsFor(question).map((option, i) => (
               <li key={option} className="rounded-lg border border-line bg-surface-2 px-2 py-1">

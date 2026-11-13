@@ -10,8 +10,8 @@ interface HeaderBarProps {
   profile: Profile;
   ready: boolean;
   onResetProgress: () => void;
-  /** Leaves any round in progress. */
-  onHome: () => void;
+  /** Called for every header link; may cancel it to confirm leaving a round. */
+  onNavigate: (event: React.MouseEvent<HTMLAnchorElement>, href: string) => void;
 }
 
 const NAV = [
@@ -23,7 +23,7 @@ export default function HeaderBar({
   profile,
   ready,
   onResetProgress,
-  onHome,
+  onNavigate,
 }: HeaderBarProps) {
   const { settings, setTheme, toggleSound, toggleHaptics, resolvedTheme, fx } =
     useSettings();
@@ -52,7 +52,11 @@ export default function HeaderBar({
   return (
     <header className="sticky top-0 z-40 border-b border-line/70 bg-bg/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5">
-        <Link href="/" onClick={onHome} className="flex items-center gap-2">
+        <Link
+          href="/"
+          onClick={(event) => onNavigate(event, "/")}
+          className="flex items-center gap-2"
+        >
           <span className="grid size-8 place-items-center rounded-xl bg-linear-to-br from-brand to-streak text-base shadow-card">
             🧠
           </span>
@@ -66,7 +70,7 @@ export default function HeaderBar({
             <Link
               key={item.href}
               href={item.href}
-              onClick={onHome}
+              onClick={(event) => onNavigate(event, item.href)}
               className="rounded-lg px-2 py-1.5 text-xs font-semibold text-muted transition hover:bg-surface hover:text-ink sm:text-sm"
             >
               {item.label}
@@ -136,6 +140,8 @@ export default function HeaderBar({
                   {(["light", "system", "dark"] as const).map((option) => (
                     <button
                       key={option}
+                      aria-pressed={settings.theme === option}
+                      aria-label={`${option} theme`}
                       onClick={() => {
                         fx("select");
                         setTheme(option);

@@ -85,12 +85,13 @@ export default async function CategoryPage({ params }: Props) {
 
         {groups.map((group, index) => (
           <section key={group.value} className="mb-8" aria-labelledby={`${group.value}-heading`}>
-            <h2 id={`${group.value}-heading`} className="mb-3 px-1 text-base font-bold text-ink">
+            <h3 id={`${group.value}-heading`} className="mb-3 px-1 text-base font-bold text-ink">
               {group.heading} {lower} questions
-            </h2>
+            </h3>
             <QuestionList
               questions={group.items}
               start={1 + groups.slice(0, index).reduce((n, g) => n + g.items.length, 0)}
+              headingLevel={4}
             />
           </section>
         ))}

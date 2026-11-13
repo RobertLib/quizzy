@@ -10,7 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { track } from "@vercel/analytics";
 import { useHydrated } from "@/lib/client-state";
 import { fetchDailyQuiz, fetchQuizQuestions } from "@/lib/quiz-api";
@@ -21,6 +21,7 @@ import {
   hasPlayedDaily,
   loadProfile,
   markDailyPlayed,
+  markDailyStarted,
   normalizeDailyStreak,
   resetProfile,
   saveProfile,
@@ -33,6 +34,7 @@ import type { Challenge, GameMode, QuizConfig, QuizSession } from "@/types/quiz"
 import QuizGame, { type FinishedSession } from "./QuizGame";
 import Results from "./Results";
 import HeaderBar from "./HeaderBar";
+import { useSettings } from "./SettingsProvider";
 
 interface ResultState {
   result: FinishedSession;
@@ -90,6 +92,8 @@ export default function QuizHost({
 }) {
   const ready = useHydrated();
   const pathname = usePathname();
+  const router = useRouter();
+  const { settings, toggleSound } = useSettings();
 
   // Shared with other tabs: a round finished elsewhere shows up here too.
   const stored = useSyncExternalStore(subscribeProfile, loadProfile, serverProfile);
@@ -100,10 +104,15 @@ export default function QuizHost({
   const [error, setError] = useState<{ path: string; message: string } | null>(
     null
   );
+  /** A header link tapped mid-round, waiting for the player to confirm. */
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
 
   // Leaving the page a round belongs to abandons it — links, back and forward
   // alike — so coming back never restarts it from the first question.
-  if (play && play.path !== pathname) setPlay(null);
+  if (play && play.path !== pathname) {
+    setPlay(null);
+    setLeaveTo(null);
+  }
   const active = play && play.path === pathname ? play : null;
   const view = active?.view ?? "home";
 
@@ -169,13 +178,16 @@ export default function QuizHost({
 
         // Read storage afresh: another tab may have played it meanwhile.
         const latest = currentProfile();
-        let mode: GameMode = "archive";
-        if (key === todayKey() && !latest.dailyCompleted.includes(key)) {
-          mode = "daily";
-          // Counted the moment it starts, so a reload can't buy a retry.
-          saveProfile(markDailyPlayed(latest, key));
-        } else if (hasPlayedDaily(latest, key)) {
+        // Counted the moment it starts, so a reload can't buy a retry.
+        let mode: GameMode;
+        if (hasPlayedDaily(latest, key)) {
           mode = "practice";
+        } else if (key === todayKey()) {
+          mode = "daily";
+          saveProfile(markDailyPlayed(latest, key));
+        } else {
+          mode = "archive";
+          saveProfile(markDailyStarted(latest, key));
         }
 
         track("quiz_start", {
@@ -195,7 +207,8 @@ export default function QuizHost({
             },
             mode,
             dailyKey: key,
-            challenge,
+            // A practice replay knows the answers — no head-to-head verdict.
+            challenge: mode === "practice" ? undefined : challenge,
           },
         });
       } catch {
@@ -260,7 +273,38 @@ export default function QuizHost({
 
   const goHome = useCallback(() => {
     setPlay(null);
+    setLeaveTo(null);
   }, []);
+
+  /**
+   * Header links: a round in progress asks before it's thrown away (the same
+   * dialog as the quit button); otherwise any results view is closed, so a
+   * link to the current page shows the page again.
+   */
+  const navigate = useCallback(
+    (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+      // Opening the link in a new tab leaves this one's round alone.
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+        return;
+      }
+      if (view === "playing") {
+        event.preventDefault();
+        setLeaveTo(href);
+        return;
+      }
+      setPlay(null);
+    },
+    [view]
+  );
+
+  const quit = useCallback(() => {
+    const href = leaveTo;
+    setPlay(null);
+    setLeaveTo(null);
+    if (href && href !== pathname) router.push(href);
+  }, [leaveTo, pathname, router]);
+
+  const cancelLeave = useCallback(() => setLeaveTo(null), []);
 
   const playAgain = useCallback(() => {
     if (!active) return;
@@ -299,16 +343,31 @@ export default function QuizHost({
   return (
     <QuizHostContext.Provider value={value}>
       <div className="app-shell relative min-h-screen">
-        {!embed && (
+        {embed ? (
+          // No header (and so no settings menu) inside another site's page,
+          // but the sound has to be switchable there too.
+          <div className="relative z-10 mx-auto flex max-w-3xl justify-end px-4 pt-2">
+            <button
+              onClick={toggleSound}
+              role="switch"
+              aria-checked={settings.sound}
+              aria-label="Sound effects"
+              title={settings.sound ? "Mute sound effects" : "Turn sound effects on"}
+              className="grid size-8 place-items-center rounded-lg text-sm text-muted ring-1 ring-line transition hover:bg-surface hover:text-ink"
+            >
+              <span aria-hidden="true">{settings.sound ? "🔊" : "🔇"}</span>
+            </button>
+          </div>
+        ) : (
           <HeaderBar
             profile={profile}
             ready={ready}
             onResetProgress={resetProfile}
-            onHome={goHome}
+            onNavigate={navigate}
           />
         )}
 
-        <main className={`relative z-10 px-4 ${embed ? "py-4" : "pb-8 pt-6"}`}>
+        <main className={`relative z-10 px-4 ${embed ? "pb-4 pt-2" : "pb-8 pt-6"}`}>
           {view === "home" && (
             <>
               {error && error.path === pathname && (
@@ -327,7 +386,9 @@ export default function QuizHost({
             <QuizGame
               session={active.session}
               onFinish={handleFinish}
-              onQuit={goHome}
+              onQuit={quit}
+              leaveRequested={leaveTo !== null}
+              onCancelLeave={cancelLeave}
             />
           )}
 

@@ -7,6 +7,7 @@ import {
   emptyProfile,
   hasPlayedDaily,
   markDailyPlayed,
+  markDailyStarted,
   type Profile,
 } from "@/lib/storage";
 
@@ -108,5 +109,44 @@ describe("daily results", () => {
     });
     assert.ok(hasPlayedDaily(archived, "2026-11-05"));
     assert.ok(!hasPlayedDaily(archived, "2026-11-06"));
+  });
+
+  it("outlive the trimmed history", () => {
+    let profile = applySession(emptyProfile, {
+      answers: [answer(true), answer(false)],
+      points: 100,
+      bestStreak: 1,
+      mode: "archive",
+      dailyKey: "2026-11-05",
+    });
+    for (let i = 0; i < 40; i++) {
+      profile = applySession(profile, {
+        answers: [answer(true)],
+        points: 100,
+        bestStreak: 1,
+        mode: "custom",
+      });
+    }
+    assert.ok(!profile.history.some((entry) => entry.dailyKey === "2026-11-05"));
+    assert.ok(hasPlayedDaily(profile, "2026-11-05"));
+    assert.deepEqual(dailyResultFor(profile, "2026-11-05"), { correct: 1, total: 2, points: 100 });
+  });
+
+  it("count an archive day as used from the moment it starts", () => {
+    const started = markDailyStarted(emptyProfile, "2026-11-05");
+    assert.ok(hasPlayedDaily(started, "2026-11-05"));
+    assert.equal(dailyResultFor(started, "2026-11-05"), undefined);
+    assert.equal(started.dailyStreak, 0);
+    assert.deepEqual(started.dailyCompleted, []);
+
+    // Finishing it later records the result once.
+    const finished = applySession(started, {
+      answers: [answer(true)],
+      points: 100,
+      bestStreak: 1,
+      mode: "archive",
+      dailyKey: "2026-11-05",
+    });
+    assert.equal(dailyResultFor(finished, "2026-11-05")?.correct, 1);
   });
 });

@@ -8,6 +8,7 @@ import {
   isPlayableKey,
   isRevealed,
   latestRevealedKey,
+  utcKey,
 } from "@/lib/daily";
 import {
   MAX_PER_CATEGORY,
@@ -127,11 +128,36 @@ describe("topic pages", () => {
 
   it("hide every question of a daily whose answers aren't out", () => {
     const hidden = unrevealedDailyIds(now);
-    // Every day not yet revealed at `now` — and the next, for cached pages.
-    for (const key of ["2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22"]) {
+    // Every day not yet revealed at `now` — and the next two, for cached pages.
+    for (const key of ["2026-11-19", "2026-11-20", "2026-11-21", "2026-11-22", "2026-11-23"]) {
       assert.ok(!isRevealed(key, now));
       for (const q of buildDailyQuiz(key)) assert.ok(hidden.has(q.id), `${key} ${q.id}`);
     }
+  });
+
+  it("stay safe when served from a cache that is up to two days old", () => {
+    // A page rendered at `rendered` and shown at `shown` must not list any
+    // question of a daily that is live at `shown`.
+    const start = Date.parse("2026-11-15T00:00:00Z");
+    for (let h = 0; h < 72; h++) {
+      const rendered = new Date(start + h * 3_600_000);
+      const hidden = unrevealedDailyIds(rendered);
+      for (let age = 0; age < 48; age++) {
+        const shown = new Date(rendered.getTime() + age * 3_600_000);
+        const today = utcKey(shown);
+        for (const key of [addDays(today, -1), today, addDays(today, 1)]) {
+          for (const q of buildDailyQuiz(key)) {
+            assert.ok(hidden.has(q.id), `rendered ${rendered.toISOString()}, shown +${age}h: ${key} ${q.id}`);
+          }
+        }
+      }
+    }
+  });
+
+  it("are never cached longer than that", async () => {
+    const { default: config } = await import("../next.config");
+    // Revalidation is hourly, and a stale page lives at most `expireTime`.
+    assert.ok(config.expireTime !== undefined && 3600 + config.expireTime < 48 * 3600);
   });
 
   it("list the rest of the topic", () => {

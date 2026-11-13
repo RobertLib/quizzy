@@ -121,7 +121,7 @@ export const literature: BankQuestion[] = [
     question: "Who wrote 'The Catcher in the Rye'?",
     correct_answer: "J. D. Salinger",
     incorrect_answers: ["Jack Kerouac", "John Steinbeck", "F. Scott Fitzgerald"],
-    explanation: "Published in 1951, the novel is narrated by the teenage Holden Caulfield over a few days in New York City.",
+    explanation: "Published in 1951, the novel is narrated by the teenage Holden Caulfield over a few days, from his Pennsylvania prep school to New York City.",
   },
   {
     id: "q099",
@@ -154,7 +154,7 @@ export const literature: BankQuestion[] = [
     question: "In 'The Lord of the Rings', who is Frodo's loyal gardener and companion?",
     correct_answer: "Samwise Gamgee",
     incorrect_answers: ["Meriadoc Brandybuck", "Peregrin Took", "Bilbo Baggins"],
-    explanation: "Sam begins the story as the Bagginses' gardener and ends it carrying Frodo up the slopes of Mount Doom.",
+    explanation: "Sam begins the story as the Bagginses' gardener and, at its climax, carries Frodo up the slopes of Mount Doom.",
   },
   {
     id: "lit-001",
@@ -385,7 +385,7 @@ export const literature: BankQuestion[] = [
     question: "In L. Frank Baum's 1900 novel 'The Wonderful Wizard of Oz', what colour are Dorothy's magic shoes?",
     correct_answer: "Silver",
     incorrect_answers: ["Ruby", "Gold", "Emerald green"],
-    explanation: "The 1939 MGM film turned them into ruby slippers to show off its Technicolor. In the book, they had belonged to the Wicked Witch of the East.",
+    explanation: "In the book they had belonged to the Wicked Witch of the East, and Dorothy learns only at the end that they could have carried her home all along.",
   },
   {
     id: "lit-022",
