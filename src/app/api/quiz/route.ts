@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { QuizApiResponse, QuizQuestion, Difficulty } from "@/types/quiz";
 import { shuffleArray } from "@/lib/quiz-api";
-import { fallbackQuestions } from "@/data/fallback-questions";
+import { questionBank } from "@/data/questions";
 
 /** Our category labels mapped to Open Trivia DB category ids. */
 const CATEGORY_TO_API_ID: Record<string, number> = {
@@ -84,7 +84,7 @@ async function fetchOpenTdb(
 }
 
 function bankFor(categories: string[], difficulty: string | null) {
-  let pool = [...fallbackQuestions];
+  let pool = [...questionBank];
   if (categories.length > 0) {
     pool = pool.filter((q) => categories.includes(q.category));
   }
@@ -93,9 +93,9 @@ function bankFor(categories: string[], difficulty: string | null) {
   }
   // If a filter combination is too narrow, relax difficulty before giving up.
   if (pool.length === 0 && categories.length > 0) {
-    pool = fallbackQuestions.filter((q) => categories.includes(q.category));
+    pool = questionBank.filter((q) => categories.includes(q.category));
   }
-  return pool.length > 0 ? pool : [...fallbackQuestions];
+  return pool.length > 0 ? pool : [...questionBank];
 }
 
 export async function GET(request: NextRequest) {

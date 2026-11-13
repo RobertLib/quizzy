@@ -1,80 +1,81 @@
-import { QuizApiResponse, QuizConfig, QuizQuestion } from "@/types/quiz";
-import { fallbackQuestions } from "@/data/fallback-questions";
+import type { QuizApiResponse, QuizConfig, QuizQuestion } from "@/types/quiz";
+import type { DailyStats } from "./daily-stats";
 
+/**
+ * Custom quizzes. The route handler already falls back to our own bank when
+ * Open Trivia DB is down, so a failure here means the player is offline.
+ */
 export async function fetchQuizQuestions(
-  amount: number = 10,
-  config?: QuizConfig
-): Promise<QuizApiResponse> {
-  try {
-    const params = new URLSearchParams({ amount: amount.toString() });
-
-    if (config && config.difficulty !== "mixed") {
-      params.append("difficulty", config.difficulty);
-    }
-    if (config && config.categories.length > 0) {
-      params.append("categories", config.categories.join(","));
-    }
-
-    const response = await fetch(`/api/quiz?${params.toString()}`, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-
-    if (!response.ok) {
-      throw new Error(`API returned ${response.status}`);
-    }
-
-    const data: QuizApiResponse = await response.json();
-    if (!data.results?.length) throw new Error("API returned no questions");
-    return data;
-  } catch (error) {
-    // Route handler unreachable (offline, cold start) — play from the bundled bank.
-    console.warn("Internal API failed, using fallback questions:", error);
-    return getFilteredFallbackQuestions(amount, config);
-  }
-}
-
-function getFilteredFallbackQuestions(
   amount: number,
-  config?: QuizConfig
-): QuizApiResponse {
-  const filteredQuestions = config
-    ? filterQuestionsByConfig(fallbackQuestions, config)
-    : fallbackQuestions;
-
-  if (filteredQuestions.length < amount) {
-    console.warn(
-      `Only ${filteredQuestions.length} questions available after filtering, but ${amount} requested`
-    );
+  config: QuizConfig
+): Promise<QuizApiResponse> {
+  const params = new URLSearchParams({ amount: amount.toString() });
+  if (config.difficulty !== "mixed") params.append("difficulty", config.difficulty);
+  if (config.categories.length > 0) {
+    params.append("categories", config.categories.join(","));
   }
 
-  const shuffledQuestions = shuffleArray(filteredQuestions);
-  const finalQuestions = shuffledQuestions.slice(0, amount);
-
-  return {
-    response_code: 0,
-    results: finalQuestions,
-    isOffline: true, // Mark as offline/fallback data
-  };
+  const response = await fetch(`/api/quiz?${params.toString()}`, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`API returned ${response.status}`);
+  return (await response.json()) as QuizApiResponse;
 }
 
-function filterQuestionsByConfig(
-  questions: QuizQuestion[],
-  config: QuizConfig
-): QuizQuestion[] {
-  let filtered = [...questions];
+export async function fetchDailyQuiz(key: string): Promise<QuizQuestion[]> {
+  const response = await fetch(`/api/daily/${key}`);
+  if (!response.ok) throw new Error(`Daily returned ${response.status}`);
+  const data = (await response.json()) as { questions: QuizQuestion[] };
+  return data.questions;
+}
 
-  // Filter by categories
-  if (config.categories.length > 0) {
-    filtered = filtered.filter((q) => config.categories.includes(q.category));
+type StatsResponse = ({ enabled: true } & DailyStats) | { enabled: false };
+
+function statsOf(data: StatsResponse): DailyStats | null {
+  return data.enabled ? data : null;
+}
+
+export async function fetchDailyStats(key: string): Promise<DailyStats | null> {
+  try {
+    const response = await fetch(`/api/daily-stats?date=${key}`);
+    if (!response.ok) return null;
+    return statsOf((await response.json()) as StatsResponse);
+  } catch {
+    return null;
   }
+}
 
-  // Filter by difficulty
-  if (config.difficulty !== "mixed") {
-    filtered = filtered.filter((q) => q.difficulty === config.difficulty);
+const SUBMITTED_KEY = "quizzy:submitted:v1";
+
+/**
+ * Sends today's anonymous result once per device, then returns everyone's
+ * numbers. Later calls (a remount, a second tab) only read.
+ */
+export async function submitDailyResult(
+  key: string,
+  grid: string
+): Promise<DailyStats | null> {
+  let already = false;
+  try {
+    already = window.localStorage.getItem(SUBMITTED_KEY) === key;
+    window.localStorage.setItem(SUBMITTED_KEY, key);
+  } catch {
+    /* storage blocked — the server de-duplicates as well */
   }
+  if (already) return fetchDailyStats(key);
 
-  return filtered;
+  try {
+    const response = await fetch("/api/daily-stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: key, grid }),
+    });
+    if (!response.ok) return null;
+    return statsOf((await response.json()) as StatsResponse);
+  } catch {
+    return null;
+  }
 }
 
 export function decodeHtmlEntities(text: string): string {

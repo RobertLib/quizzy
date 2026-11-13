@@ -370,3 +370,10 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------
+   Disclosure widgets (FAQ, question lists)
+   --------------------------------------------------------------- */
+summary::-webkit-details-marker {
+  display: none;
+}

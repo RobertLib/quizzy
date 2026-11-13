@@ -2,23 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { ACHIEVEMENTS, TIER_STYLES } from "@/lib/achievements";
-import { accuracyOf, type Profile } from "@/lib/storage";
+import { accuracyOf } from "@/lib/storage";
 import { levelProgress } from "@/lib/scoring";
-import { CATEGORIES } from "./QuizConfig";
+import { CATEGORIES } from "@/data/categories";
 import { useSettings } from "./SettingsProvider";
+import { useQuizHost } from "./QuizHost";
 
 const CATEGORY_EMOJI = Object.fromEntries(
   CATEGORIES.map((c) => [c.name, c.emoji])
 );
 
-export default function StatsPanel({
-  profile,
-  ready,
-}: {
-  profile: Profile;
-  ready: boolean;
-}) {
+export default function StatsPanel() {
   const { fx } = useSettings();
+  const { profile, ready } = useQuizHost();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"stats" | "badges">("stats");
 

@@ -4,23 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import type { Difficulty, QuizConfig } from "@/types/quiz";
 import { CONFIG_KEY } from "@/lib/storage";
 import { useHydrated } from "@/lib/client-state";
+import { CATEGORIES } from "@/data/categories";
 import { useSettings } from "./SettingsProvider";
-
-export interface QuizConfigProps {
-  onStartQuiz: (config: QuizConfig) => void;
-  isLoading: boolean;
-}
-
-export const CATEGORIES: { name: string; emoji: string }[] = [
-  { name: "General Knowledge", emoji: "🧩" },
-  { name: "Science", emoji: "🔬" },
-  { name: "History", emoji: "🏛️" },
-  { name: "Geography", emoji: "🗺️" },
-  { name: "Literature", emoji: "📖" },
-  { name: "Mathematics", emoji: "➗" },
-  { name: "Sports", emoji: "⚽" },
-  { name: "Entertainment", emoji: "🎬" },
-];
+import { useQuizHost } from "./QuizHost";
 
 const DIFFICULTIES: {
   value: Difficulty | "mixed";
@@ -127,11 +113,9 @@ function loadConfig(): QuizConfig {
   }
 }
 
-export default function QuizConfigPanel({
-  onStartQuiz,
-  isLoading,
-}: QuizConfigProps) {
+export default function QuizConfigPanel() {
   const { fx } = useSettings();
+  const { startCustom, isLoading } = useQuizHost();
   const hydrated = useHydrated();
   const [showCustom, setShowCustom] = useState(false);
 
@@ -167,9 +151,9 @@ export default function QuizConfigPanel({
     });
   };
 
-  const start = (override?: QuizConfig) => {
+  const start = (override?: QuizConfig, source = "builder") => {
     fx("click");
-    onStartQuiz(override ?? config);
+    void startCustom(override ?? config, source);
   };
 
   const selectedLabel =
@@ -187,7 +171,7 @@ export default function QuizConfigPanel({
           <button
             key={preset.id}
             disabled={isLoading}
-            onClick={() => start(preset.build())}
+            onClick={() => start(preset.build(), preset.id)}
             className="card sheen group flex flex-col items-start gap-0.5 p-4 text-left transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-lift active:translate-y-0 disabled:opacity-60"
           >
             <span className="text-2xl transition-transform duration-300 group-hover:scale-110">

@@ -10,6 +10,7 @@ import {
   streakMultiplier,
   type ScoreBreakdown,
 } from "@/lib/scoring";
+import { dailyNumber } from "@/lib/daily";
 import { useSettings } from "./SettingsProvider";
 import Ring from "./ui/Ring";
 
@@ -38,7 +39,7 @@ const DIFFICULTY_STYLE = {
 } as const;
 
 export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
-  const { questions, config, mode, isOffline } = session;
+  const { questions, config, mode, isOffline, dailyKey } = session;
   const { fx } = useSettings();
 
   const [index, setIndex] = useState(0);
@@ -140,6 +141,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
           points: breakdown?.total ?? 0,
           streak: nextStreak,
           skipped,
+          explanation: question.explanation,
         },
       ]);
 
@@ -202,16 +204,18 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
     setBonusTime(0);
   }, [revealed, isLast, answers, points, bestStreak, finish]);
 
-  // Correct answers roll on by themselves; misses wait so they can be read.
+  // Correct answers roll on by themselves; misses — and anything with an
+  // explanation to read — wait for the player.
+  const autoAdvances = !question?.explanation;
   useEffect(() => {
-    if (!revealed) return;
+    if (!revealed || !autoAdvances) return;
     const lastAnswer = answers[answers.length - 1];
     if (!lastAnswer?.isCorrect) return;
     autoAdvanceRef.current = setTimeout(advance, AUTO_ADVANCE_MS);
     return () => {
       if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     };
-  }, [revealed, answers, advance]);
+  }, [revealed, autoAdvances, answers, advance]);
 
   /* -------------------------------------------------------------- powerups */
   const activatePowerUp = useCallback(
@@ -314,7 +318,11 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <div className="min-w-0">
             <div className="text-[0.7rem] font-semibold uppercase tracking-wider text-subtle">
-              {mode === "daily" ? "Daily Challenge" : "Question"}
+              {mode === "daily"
+                ? "Daily Challenge"
+                : mode === "archive" && dailyKey
+                  ? `Daily #${dailyNumber(dailyKey)}`
+                  : "Question"}
             </div>
             <div className="tnum text-sm font-bold text-ink">
               {index + 1}
@@ -499,6 +507,12 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
           </div>
 
           {/* -------------------------------------------------------- feedback */}
+          {revealed && question.explanation && (
+            <p className="animate-rise mt-5 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm leading-relaxed text-muted">
+              <span aria-hidden="true">💡 </span>
+              {question.explanation}
+            </p>
+          )}
           {revealed ? (
             <div className="animate-rise mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm font-semibold" role="status" aria-live="polite">
@@ -530,7 +544,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
               >
                 {isLast ? "See results" : "Next question"}
                 <span className="ml-1.5">→</span>
-                {answers[answers.length - 1]?.isCorrect && (
+                {autoAdvances && answers[answers.length - 1]?.isCorrect && (
                   <span className="autoadv absolute inset-x-0 bottom-0 h-0.5 bg-white/70" />
                 )}
               </button>

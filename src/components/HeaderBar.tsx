@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { levelProgress } from "@/lib/scoring";
 import type { Profile } from "@/lib/storage";
 import { useSettings } from "./SettingsProvider";
@@ -9,12 +10,20 @@ interface HeaderBarProps {
   profile: Profile;
   ready: boolean;
   onResetProgress: () => void;
+  /** Leaves any round in progress. */
+  onHome: () => void;
 }
+
+const NAV = [
+  { href: "/daily", label: "Daily" },
+  { href: "/trivia", label: "Topics" },
+];
 
 export default function HeaderBar({
   profile,
   ready,
   onResetProgress,
+  onHome,
 }: HeaderBarProps) {
   const { settings, setTheme, toggleSound, toggleHaptics, resolvedTheme, fx } =
     useSettings();
@@ -43,14 +52,27 @@ export default function HeaderBar({
   return (
     <header className="sticky top-0 z-40 border-b border-line/70 bg-bg/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5">
-        <div className="flex items-center gap-2">
+        <Link href="/" onClick={onHome} className="flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-xl bg-linear-to-br from-brand to-streak text-base shadow-card">
             🧠
           </span>
           <span className="brand-gradient-text text-lg font-extrabold tracking-tight">
             Quizzy
           </span>
-        </div>
+        </Link>
+
+        <nav aria-label="Main" className="ml-1 flex items-center gap-0.5 sm:ml-3">
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onHome}
+              className="rounded-lg px-2 py-1.5 text-xs font-semibold text-muted transition hover:bg-surface hover:text-ink sm:text-sm"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
 
         <div className="ml-auto flex items-center gap-2">
           {ready && profile.dailyStreak > 0 && (

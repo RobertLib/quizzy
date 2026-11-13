@@ -1,15 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { QuizSession } from "@/types/quiz";
+import { track } from "@vercel/analytics";
+import type { Challenge, QuizSession } from "@/types/quiz";
 import type { FinishedSession } from "./QuizGame";
 import type { Achievement } from "@/lib/achievements";
 import { TIER_STYLES } from "@/lib/achievements";
 import { gradeFor, xpFromPoints, type LevelProgress } from "@/lib/scoring";
-import { dayNumber } from "@/lib/daily";
+import { dailyNumber } from "@/lib/daily";
+import { GRID_EMOJI, correctIn, gridOf, shareUrlFor } from "@/lib/challenge";
+import {
+  MIN_PLAYS_FOR_STATS,
+  betterThan,
+  percentRight,
+  type DailyStats,
+} from "@/lib/daily-stats";
+import { fetchDailyStats, submitDailyResult } from "@/lib/quiz-api";
+import { SITE_URL } from "@/lib/site";
 import { useSettings } from "./SettingsProvider";
 import Confetti from "./Confetti";
 import Ring from "./ui/Ring";
+import GridSquares from "./ui/GridSquares";
 
 interface ResultsProps {
   result: FinishedSession;
@@ -17,6 +28,8 @@ interface ResultsProps {
   levelBefore: LevelProgress;
   levelAfter: LevelProgress;
   unlocked: Achievement[];
+  /** Rendered inside another site's iframe. */
+  embed?: boolean;
   onPlayAgain: () => void;
   onPracticeMisses: () => void;
   onNewQuiz: () => void;
@@ -50,6 +63,7 @@ export default function Results({
   levelBefore,
   levelAfter,
   unlocked,
+  embed = false,
   onPlayAgain,
   onPracticeMisses,
   onNewQuiz,
@@ -78,6 +92,9 @@ export default function Results({
   }, [answers, total]);
 
   const misses = answers.filter((a) => !a.isCorrect).length;
+  const grid = useMemo(() => gridOf(answers), [answers]);
+  const stats = useDailyStats(session, grid);
+  const showStats = stats !== null && stats.plays >= MIN_PLAYS_FOR_STATS;
 
   useEffect(() => {
     fx("finish");
@@ -91,19 +108,18 @@ export default function Results({
   }, [unlocked, fx]);
 
   const shareText = useMemo(() => {
-    const grid = answers
-      .map((a) => (a.isCorrect ? "🟩" : a.skipped ? "🟨" : "🟥"))
-      .join("");
-    const title =
-      session.mode === "daily"
-        ? `Quizzy Daily #${dayNumber() - 20000}`
-        : "Quizzy";
+    const squares = [...grid].map((c) => GRID_EMOJI[c]).join("");
+    const title = session.dailyKey
+      ? `Quizzy Daily #${dailyNumber(session.dailyKey)}`
+      : "Quizzy";
     const streakPart = bestStreak >= 3 ? ` · 🔥${bestStreak}` : "";
-    return `${title}\n${grid}\n${correct}/${total} · ${points.toLocaleString()} pts${streakPart}\nhttps://quizzy-eight-khaki.vercel.app`;
-  }, [answers, session.mode, correct, total, points, bestStreak]);
+    const dare = session.dailyKey ? "\nCan you beat me?" : "";
+    return `${title}\n${squares}\n${correct}/${total} · ${points.toLocaleString()} pts${streakPart}${dare}\n${shareUrlFor(session, answers, points)}`;
+  }, [grid, session, answers, correct, total, points, bestStreak]);
 
   const share = async () => {
     fx("click");
+    track("share", { mode: session.mode });
     try {
       if (navigator.share) {
         await navigator.share({ text: shareText });
@@ -119,8 +135,8 @@ export default function Results({
 
   const ringTone =
     accuracy >= 0.9 ? "text-gold" : accuracy >= 0.6 ? "text-brand" : "text-warn";
-  // The daily can only be played once, so "play again" sends them elsewhere.
-  const replayable = session.mode !== "daily";
+  // A daily can only be played once, so "play again" sends them elsewhere.
+  const replayable = session.mode === "custom";
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -169,6 +185,14 @@ export default function Results({
             </div>
           </div>
 
+          {showStats && session.mode === "daily" && (
+            <p className="animate-rise mt-6 rounded-2xl bg-surface-2 px-4 py-3 text-sm font-semibold text-ink">
+              🌍 Better than{" "}
+              <span className="text-brand">{betterThan(stats, correct)}%</span> of
+              the {stats.plays.toLocaleString()} players today
+            </p>
+          )}
+
           {/* -------------------------------------------------- level progress */}
           <div className="mt-8 text-left">
             <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
@@ -188,6 +212,15 @@ export default function Results({
           </div>
         </div>
       </div>
+
+      {session.challenge && (
+        <ChallengeVerdict
+          challenge={session.challenge}
+          correct={correct}
+          points={points}
+          grid={grid}
+        />
+      )}
 
       {/* ------------------------------------------------------ achievements */}
       {unlocked.length > 0 && (
@@ -228,7 +261,7 @@ export default function Results({
           }}
           className="sheen rounded-2xl bg-brand px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-lift transition hover:bg-brand-strong active:scale-[0.99]"
         >
-          {replayable ? "Play again ↻" : "Pick another quiz →"}
+          {replayable ? "Play again ↻" : embed ? "Back ←" : "Pick another quiz →"}
         </button>
         <button
           onClick={share}
@@ -247,7 +280,18 @@ export default function Results({
             Practise the {misses} you missed 🎯
           </button>
         )}
-        {replayable && (
+        {embed ? (
+          <a
+            href={SITE_URL}
+            target="_blank"
+            rel="noopener"
+            className={`rounded-2xl border border-line bg-surface px-6 py-3 text-center text-sm font-semibold text-muted transition hover:border-brand/40 hover:text-ink ${
+              misses > 0 ? "" : "sm:col-span-2"
+            }`}
+          >
+            More trivia on Quizzy ↗
+          </a>
+        ) : replayable && (
           <button
             onClick={() => {
               fx("click");
@@ -326,10 +370,16 @@ export default function Results({
                         </strong>
                       </span>
                       <span className="tnum ml-auto text-subtle">
+                        {showStats && `${percentRight(stats, index)}% got it · `}
                         {answer.timeSpent}s
                         {answer.points > 0 && ` · +${answer.points}`}
                       </span>
                     </div>
+                    {answer.explanation && (
+                      <p className="mt-2 text-xs leading-relaxed text-muted">
+                        💡 {answer.explanation}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -369,6 +419,101 @@ function StatTile({
         }`}
       >
         {value}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Today's daily posts its anonymous result and gets everyone's numbers back;
+ * an archived day only reads them.
+ */
+function useDailyStats(session: QuizSession, grid: string): DailyStats | null {
+  const [stats, setStats] = useState<DailyStats | null>(null);
+  const { mode, dailyKey } = session;
+
+  useEffect(() => {
+    if (!dailyKey || mode === "custom") return;
+    let cancelled = false;
+    const request =
+      mode === "daily" ? submitDailyResult(dailyKey, grid) : fetchDailyStats(dailyKey);
+    void request.then((result) => {
+      if (!cancelled) setStats(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, dailyKey, grid]);
+
+  return stats;
+}
+
+function ChallengeVerdict({
+  challenge,
+  correct,
+  points,
+  grid,
+}: {
+  challenge: Challenge;
+  correct: number;
+  points: number;
+  grid: string;
+}) {
+  const theirs = correctIn(challenge.grid);
+  const won = correct > theirs || (correct === theirs && points > challenge.points);
+  const tied = correct === theirs && points === challenge.points;
+  const verdict = tied ? "Dead heat 🤝" : won ? "You win! 🏆" : "They win this time 😤";
+
+  return (
+    <div className="card animate-rise mb-4 p-5">
+      <h3 className="mb-3 text-center text-lg font-extrabold text-ink">{verdict}</h3>
+      <div className="grid grid-cols-2 gap-3 text-center">
+        <ScoreColumn label="You" grid={grid} correct={correct} points={points} highlight={won || tied} />
+        <ScoreColumn
+          label="Your friend"
+          grid={challenge.grid}
+          correct={theirs}
+          points={challenge.points}
+          highlight={!won || tied}
+        />
+      </div>
+      <p className="mt-3 text-center text-xs text-muted">
+        Share your result to send the challenge back.
+      </p>
+    </div>
+  );
+}
+
+function ScoreColumn({
+  label,
+  grid,
+  correct,
+  points,
+  highlight,
+}: {
+  label: string;
+  grid: string;
+  correct: number;
+  points: number;
+  highlight: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-3 py-3 ${
+        highlight ? "border-brand/30 bg-brand-soft" : "border-line bg-surface-2"
+      }`}
+    >
+      <div className="text-[0.7rem] font-semibold uppercase tracking-wide text-subtle">
+        {label}
+      </div>
+      <div className="mt-2">
+        <GridSquares grid={grid} />
+      </div>
+      <div className="tnum mt-1 text-base font-extrabold text-ink">
+        {correct}/{grid.length}
+        <span className="ml-1.5 text-xs font-semibold text-subtle">
+          {points.toLocaleString()} pts
+        </span>
       </div>
     </div>
   );

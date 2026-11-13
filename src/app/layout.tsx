@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import SettingsProvider from "@/components/SettingsProvider";
+import { OG_IMAGE, SITE_NAME, SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,21 +18,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Quizzy — Trivia with streaks, levels and a daily challenge",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Quizzy — Free Daily Trivia Quiz with Answers",
+    template: "%s · Quizzy",
+  },
   description:
-    "A fast trivia game: beat the clock, build streaks for up to ×3 points, unlock badges and keep a daily streak alive. Eight categories, three difficulties, no sign-up.",
-  keywords: [
-    "quiz",
-    "trivia",
-    "trivia game",
-    "daily challenge",
-    "knowledge",
-    "education",
-    "streaks",
-    "questions",
-    "answers",
-    "interactive",
-  ],
+    "A free trivia quiz with a new daily challenge: beat the clock, build streaks for up to ×3 points, unlock badges and challenge friends. Eight categories, three difficulties, no sign-up.",
+  applicationName: SITE_NAME,
   authors: [{ name: "Robert Libsansky" }],
   creator: "Robert Libsansky",
   publisher: "Robert Libsansky",
@@ -39,16 +33,14 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
-  metadataBase: new URL("https://quizzy-eight-khaki.vercel.app"),
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
-    title: "Quizzy — Trivia with streaks, levels and a daily challenge",
-    description:
-      "Beat the clock, build streaks for up to ×3 points, unlock badges and keep your daily streak alive.",
+    siteName: SITE_NAME,
     type: "website",
-    url: "/",
+    images: [OG_IMAGE],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: [OG_IMAGE.url],
   },
 };
 
@@ -63,42 +55,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    name: "Quizzy",
-    description:
-      "Interactive trivia game with timed rounds, streak multipliers, levels, badges and a daily challenge",
-    url: "https://quizzy-eight-khaki.vercel.app",
-    applicationCategory: "GameApplication",
-    operatingSystem: "Web Browser",
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
-    author: {
-      "@type": "Person",
-      name: "Robert Libsansky",
-    },
-  };
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
       </head>
       <body
         className={`${geistSans.variable} font-sans antialiased`}
         style={{ fontFamily: "var(--font-geist-sans), system-ui, sans-serif" }}
       >
-        <SettingsProvider>
-          <main>{children}</main>
-        </SettingsProvider>
+        <SettingsProvider>{children}</SettingsProvider>
         <Analytics />
       </body>
     </html>

@@ -1,24 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   DAILY_QUESTION_COUNT,
-  dayNumber,
+  dailyNumber,
   formatCountdown,
+  keyFrom,
   msUntilTomorrow,
   todayKey,
 } from "@/lib/daily";
-import type { Profile } from "@/lib/storage";
 import { useSettings } from "./SettingsProvider";
+import { useQuizHost } from "./QuizHost";
 
-interface DailyCardProps {
-  profile: Profile;
-  ready: boolean;
-  onPlay: () => void;
-}
-
-export default function DailyCard({ profile, ready, onPlay }: DailyCardProps) {
+export default function DailyCard({
+  showArchiveLink = true,
+}: {
+  showArchiveLink?: boolean;
+}) {
   const { fx } = useSettings();
+  const { profile, ready, isLoading, embed, startDaily } = useQuizHost();
   const [, tick] = useState(0);
 
   const done = ready && profile.dailyLastPlayed === todayKey();
@@ -40,10 +41,7 @@ export default function DailyCard({ profile, ready, onPlay }: DailyCardProps) {
   const last7 = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - (6 - i));
-    const key = `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(
-      2,
-      "0"
-    )}-${`${date.getDate()}`.padStart(2, "0")}`;
+    const key = keyFrom(date);
     return {
       key,
       label: date.toLocaleDateString(undefined, { weekday: "narrow" }),
@@ -69,9 +67,20 @@ export default function DailyCard({ profile, ready, onPlay }: DailyCardProps) {
             <h2 className="text-base font-extrabold text-ink">
               Daily Challenge
             </h2>
-            <span className="tnum rounded-lg bg-surface-3 px-1.5 py-0.5 text-[0.65rem] font-bold text-subtle">
-              #{dayNumber() - 20000}
-            </span>
+            {/* The number depends on the player's date, so it waits for hydration. */}
+            {ready && (
+              <span className="tnum rounded-lg bg-surface-3 px-1.5 py-0.5 text-[0.65rem] font-bold text-subtle">
+                #{dailyNumber()}
+              </span>
+            )}
+            {showArchiveLink && !embed && (
+              <Link
+                href="/daily"
+                className="ml-auto text-xs font-semibold text-brand hover:underline"
+              >
+                Past dailies →
+              </Link>
+            )}
           </div>
           <p className="mt-1 text-sm text-muted">
             {done
@@ -118,11 +127,12 @@ export default function DailyCard({ profile, ready, onPlay }: DailyCardProps) {
           </div>
         ) : (
           <button
+            disabled={isLoading}
             onClick={() => {
               fx("click");
-              onPlay();
+              void startDaily(todayKey());
             }}
-            className="sheen shrink-0 rounded-2xl bg-linear-to-r from-brand to-brand-strong px-6 py-3.5 text-sm font-extrabold text-brand-contrast shadow-lift transition hover:brightness-110 active:scale-[0.98]"
+            className="sheen shrink-0 disabled:opacity-70 rounded-2xl bg-linear-to-r from-brand to-brand-strong px-6 py-3.5 text-sm font-extrabold text-brand-contrast shadow-lift transition hover:brightness-110 active:scale-[0.98]"
           >
             Play today&apos;s →
           </button>
