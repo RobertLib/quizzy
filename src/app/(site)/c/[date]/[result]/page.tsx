@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ChallengePlay } from "@/components/PlayButtons";
 import { DAILY_QUESTION_COUNT, dailyNumber, formatDateKey, isPlayableKey } from "@/lib/daily";
+import { SITE_NAME } from "@/lib/site";
 import { correctIn, parseChallenge } from "@/lib/challenge";
 import GridSquares from "@/components/ui/GridSquares";
 
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const data = await load(params);
   if (!data) return {};
   const title = `Can you beat ${data.correct}/${DAILY_QUESTION_COUNT} on Quizzy Daily #${dailyNumber(data.date)}?`;
-  const description = `A friend scored ${data.correct}/${DAILY_QUESTION_COUNT} (${data.challenge.points.toLocaleString()} pts) on today's trivia challenge. Same ${DAILY_QUESTION_COUNT} questions — your turn.`;
+  const description = `A friend scored ${data.correct}/${DAILY_QUESTION_COUNT} (${data.challenge.points.toLocaleString("en-US")} pts) on the daily trivia challenge for ${formatDateKey(data.date)}. Same ${DAILY_QUESTION_COUNT} questions — your turn.`;
   return {
     title: { absolute: title },
     description,
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // point search engines at the day itself.
     robots: { index: false, follow: true },
     alternates: { canonical: `/daily/${data.date}` },
-    openGraph: { title, description, type: "website", siteName: "Quizzy" },
+    openGraph: { title, description, type: "website", siteName: SITE_NAME },
     twitter: { card: "summary_large_image", title, description },
   };
 }
@@ -56,7 +57,7 @@ export default async function ChallengePage({ params }: Props) {
             Can you beat {correct}/{DAILY_QUESTION_COUNT}?
           </h1>
           <p className="mt-2 text-sm text-muted">
-            A friend scored {challenge.points.toLocaleString()} points on Daily
+            A friend scored {challenge.points.toLocaleString("en-US")} points on Daily
             #{dailyNumber(date)} ({formatDateKey(date)}).
           </p>
           <div className="my-5">

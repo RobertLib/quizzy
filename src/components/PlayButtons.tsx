@@ -3,6 +3,7 @@
 import type { Challenge, Difficulty } from "@/types/quiz";
 import { DAILY_QUESTION_COUNT, todayKey } from "@/lib/daily";
 import { correctIn } from "@/lib/challenge";
+import { dailyResultFor, hasPlayedDaily } from "@/lib/storage";
 import { useSettings } from "./SettingsProvider";
 import { useQuizHost } from "./QuizHost";
 
@@ -72,30 +73,28 @@ export function DailyDayPlay({ dateKey }: { dateKey: string }) {
   }
 
   const isToday = dateKey === today;
-  const played = profile.dailyCompleted.includes(dateKey);
-  const todaysResult = isToday
-    ? profile.history.find((h) => h.mode === "daily" && h.date.slice(0, 10) === dateKey)
-    : undefined;
+  const played = hasPlayedDaily(profile, dateKey);
+  const result = dailyResultFor(profile, dateKey);
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <button disabled={isLoading} onClick={play} className={primary}>
         {isLoading
           ? "Loading…"
-          : isToday && !played
-            ? "Play today's daily →"
-            : played
-              ? "Replay for practice ↻"
+          : played
+            ? "Replay for practice ↻"
+            : isToday
+              ? "Play today's daily →"
               : "Play this day →"}
       </button>
       <p className="text-xs text-muted">
-        {isToday && !played
-          ? `${DAILY_QUESTION_COUNT} questions · counts towards your daily streak`
-          : todaysResult
-            ? `You scored ${todaysResult.correct}/${todaysResult.total} today.`
-            : played
-              ? "You played this one on the day."
-              : `${DAILY_QUESTION_COUNT} questions · practice round, earns XP`}
+        {result
+          ? `You scored ${result.correct}/${result.total}${isToday ? " today" : ""} · a replay is practice.`
+          : played
+            ? "You've already started this one — a replay is practice."
+            : isToday
+              ? `${DAILY_QUESTION_COUNT} questions · counts towards your daily streak`
+              : `${DAILY_QUESTION_COUNT} questions · earns XP, doesn't count towards your streak`}
       </p>
     </div>
   );
@@ -114,10 +113,8 @@ export function ChallengePlay({
 
   const theirs = correctIn(challenge.grid);
   const today = ready ? todayKey() : null;
-  const mine =
-    dateKey === today
-      ? profile.history.find((h) => h.mode === "daily" && h.date.slice(0, 10) === dateKey)
-      : undefined;
+  const mine = ready ? dailyResultFor(profile, dateKey) : undefined;
+  const played = ready && hasPlayedDaily(profile, dateKey);
 
   const play = () => {
     fx("click");
@@ -140,7 +137,7 @@ export function ChallengePlay({
     return (
       <div className="space-y-3">
         <p className="text-base font-bold text-ink">
-          You already played today: {mine.correct}/{mine.total} ·{" "}
+          You already played this one: {mine.correct}/{mine.total} ·{" "}
           {mine.points.toLocaleString()} pts —{" "}
           {tied ? "a dead heat 🤝" : won ? "you win 🏆" : "they win 😤"}
         </p>
@@ -153,7 +150,11 @@ export function ChallengePlay({
 
   return (
     <button disabled={isLoading} onClick={play} className={`${primary} w-full sm:w-auto`}>
-      {isLoading ? "Loading…" : "Accept the challenge →"}
+      {isLoading
+        ? "Loading…"
+        : played
+          ? "Play it for practice →"
+          : "Accept the challenge →"}
     </button>
   );
 }

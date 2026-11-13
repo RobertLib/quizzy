@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { QuizApiResponse, QuizQuestion, Difficulty } from "@/types/quiz";
+import type { QuizApiResponse, QuizQuestion, Difficulty } from "@/types/quiz";
 import { shuffleArray } from "@/lib/quiz-api";
 import { questionBank } from "@/data/questions";
+import { unrevealedDailyIds } from "@/lib/daily-questions";
 
 /** Our category labels mapped to Open Trivia DB category ids. */
 const CATEGORY_TO_API_ID: Record<string, number> = {
@@ -16,7 +17,18 @@ const CATEGORY_TO_API_ID: Record<string, number> = {
 };
 
 const MAX_AMOUNT = 50;
-const REQUEST_TIMEOUT_MS = 7000;
+/** Open Trivia DB's own limit on `amount`. */
+const UPSTREAM_MAX_AMOUNT = 50;
+const REQUEST_TIMEOUT_MS = 4000;
+
+/**
+ * Open Trivia DB allows one request per IP every five seconds, and every
+ * player reaches it through this server's IP. Waiting or retrying would cost
+ * the player seconds for nothing, so a round that comes inside the window is
+ * dealt from our own bank instead — which has explanations anyway.
+ */
+const UPSTREAM_INTERVAL_MS = 5000;
+let upstreamFreeAt = 0;
 
 function normalizeKey(question: string) {
   return question.replace(/\s+/g, " ").trim().toLowerCase();
@@ -40,16 +52,15 @@ function toOurCategory(raw: string): string {
 
 async function fetchOpenTdb(
   amount: number,
-  difficulty: string | null,
-  categoryId: number | null,
-  attempt = 0
+  difficulty: Difficulty | null,
+  categoryId: number | null
 ): Promise<QuizQuestion[]> {
   const params = new URLSearchParams({
     amount: String(amount),
     type: "multiple",
     encode: "url3986",
   });
-  if (difficulty && difficulty !== "mixed") params.set("difficulty", difficulty);
+  if (difficulty) params.set("difficulty", difficulty);
   if (categoryId) params.set("category", String(categoryId));
 
   const response = await fetch(`https://opentdb.com/api.php?${params}`, {
@@ -57,13 +68,6 @@ async function fetchOpenTdb(
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     cache: "no-store",
   });
-
-  // Open Trivia DB allows one request per IP every few seconds — back off once.
-  if (response.status === 429 && attempt < 1) {
-    await new Promise((resolve) => setTimeout(resolve, 1400));
-    return fetchOpenTdb(amount, difficulty, categoryId, attempt + 1);
-  }
-
   if (!response.ok) throw new Error(`upstream ${response.status}`);
 
   const data = (await response.json()) as {
@@ -83,19 +87,56 @@ async function fetchOpenTdb(
   }));
 }
 
-function bankFor(categories: string[], difficulty: string | null) {
-  let pool = [...questionBank];
-  if (categories.length > 0) {
-    pool = pool.filter((q) => categories.includes(q.category));
+/**
+ * At most one upstream request per round, and none inside the rate-limit
+ * window. A multi-category round asks for one of its categories; the bank
+ * fills in the rest.
+ */
+async function upstreamQuestions(
+  amount: number,
+  categories: string[],
+  difficulty: Difficulty | null
+): Promise<QuizQuestion[]> {
+  const now = Date.now();
+  if (now < upstreamFreeAt) return [];
+  upstreamFreeAt = now + UPSTREAM_INTERVAL_MS;
+
+  const category =
+    categories.length > 0
+      ? categories[Math.floor(Math.random() * categories.length)]
+      : null;
+  const wanted = Math.min(
+    UPSTREAM_MAX_AMOUNT,
+    Math.max(3, Math.ceil((amount / Math.max(1, categories.length)) * 1.4))
+  );
+  try {
+    return await fetchOpenTdb(
+      wanted,
+      difficulty,
+      category ? CATEGORY_TO_API_ID[category] : null
+    );
+  } catch {
+    return [];
   }
-  if (difficulty && difficulty !== "mixed") {
-    pool = pool.filter((q) => q.difficulty === difficulty);
-  }
+}
+
+/**
+ * Our own questions for a round — never one from a daily whose answers are
+ * still unpublished, or the round would give them away.
+ */
+function bankFor(categories: string[], difficulty: Difficulty | null) {
+  const hidden = unrevealedDailyIds();
+  const available = questionBank.filter((q) => !hidden.has(q.id));
+  const inCategories =
+    categories.length > 0
+      ? available.filter((q) => categories.includes(q.category))
+      : available;
+  const pool = difficulty
+    ? inCategories.filter((q) => q.difficulty === difficulty)
+    : inCategories;
   // If a filter combination is too narrow, relax difficulty before giving up.
-  if (pool.length === 0 && categories.length > 0) {
-    pool = questionBank.filter((q) => categories.includes(q.category));
-  }
-  return pool.length > 0 ? pool : [...questionBank];
+  if (pool.length > 0) return pool;
+  return inCategories.length > 0 ? inCategories : available;
 }
 
 export async function GET(request: NextRequest) {
@@ -116,41 +157,13 @@ export async function GET(request: NextRequest) {
 
   const collected: QuizQuestion[] = [];
   const seen = new Set<string>();
-
-  const add = (questions: QuizQuestion[]) => {
-    for (const question of questions) {
-      const key = normalizeKey(question.question);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      collected.push(question);
-    }
-  };
-
-  // One upstream request per selected category so multi-category quizzes are
-  // genuinely mixed. Requests are staggered because the upstream rate-limits.
-  const targets: (number | null)[] =
-    categories.length > 0
-      ? categories.map((c) => CATEGORY_TO_API_ID[c])
-      : [null];
-  const perTarget = Math.max(3, Math.ceil((amount / targets.length) * 1.4));
-
-  const settled = await Promise.allSettled(
-    targets.map(async (categoryId, index) => {
-      if (index > 0) {
-        await new Promise((resolve) => setTimeout(resolve, index * 350));
-      }
-      return fetchOpenTdb(perTarget, difficulty, categoryId);
-    })
-  );
-
-  let upstreamFailures = 0;
-  for (const result of settled) {
-    if (result.status === "fulfilled") add(result.value);
-    else upstreamFailures++;
+  for (const question of await upstreamQuestions(amount, categories, difficulty)) {
+    const key = normalizeKey(question.question);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    collected.push(question);
   }
 
-  // Top up from the bundled bank so a partial upstream failure (the rate limit
-  // hits one category but not another) still yields a full quiz.
   const topUp = shuffleArray(bankFor(categories, difficulty)).filter(
     (q) => !seen.has(normalizeKey(q.question))
   );
@@ -166,7 +179,6 @@ export async function GET(request: NextRequest) {
   const result: QuizApiResponse = {
     response_code: 0,
     results: shuffleArray(questions),
-    isOffline: upstreamFailures === settled.length,
   };
 
   return NextResponse.json(result, {

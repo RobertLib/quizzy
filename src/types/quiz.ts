@@ -16,7 +16,6 @@ export interface QuizQuestion {
 export interface QuizApiResponse {
   response_code: number;
   results: QuizQuestion[];
-  isOffline?: boolean;
 }
 
 export interface QuizAnswer {
@@ -48,9 +47,11 @@ export interface QuizConfig {
 /**
  * - custom: a quiz the player configured
  * - daily: today's daily challenge (counts towards the daily streak)
- * - archive: any other day's daily, played for practice
+ * - archive: another day's daily, played for the first time (earns XP)
+ * - practice: questions the player has already seen answered — missed
+ *   questions, or a daily they've played before. Counts for nothing.
  */
-export type GameMode = "custom" | "daily" | "archive";
+export type GameMode = "custom" | "daily" | "archive" | "practice";
 
 /** A friend's daily result the player is trying to beat. */
 export interface Challenge {
@@ -63,8 +64,7 @@ export interface QuizSession {
   questions: QuizQuestion[];
   config: QuizConfig;
   mode: GameMode;
-  isOffline: boolean;
-  /** The daily's date for daily and archive sessions. */
+  /** The daily's date for daily, archive and replayed-daily sessions. */
   dailyKey?: string;
   challenge?: Challenge;
 }

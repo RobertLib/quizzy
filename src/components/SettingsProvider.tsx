@@ -16,13 +16,14 @@ import {
   type ThemePreference,
 } from "@/lib/storage";
 import { useHydrated, useSystemDark } from "@/lib/client-state";
-import { cue, setSoundEnabled, type SoundName } from "@/lib/sound";
+import { cue, type SoundName } from "@/lib/sound";
 
 interface SettingsValue {
   settings: Settings;
   /** True once localStorage has been read on the client. */
   ready: boolean;
   setTheme: (theme: ThemePreference) => void;
+  /** Turning sound on plays a cue, so the player hears that it worked. */
   toggleSound: () => void;
   toggleHaptics: () => void;
   /** Fire a sound + haptic cue honouring the player's preferences. */
@@ -59,10 +60,6 @@ export default function SettingsProvider({
     document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
   }, [resolvedTheme]);
 
-  useEffect(() => {
-    setSoundEnabled(settings.sound);
-  }, [settings.sound]);
-
   const persist = useCallback((next: Settings) => {
     setEdited(next);
     saveSettings(next);
@@ -74,7 +71,12 @@ export default function SettingsProvider({
       ready: hydrated,
       resolvedTheme,
       setTheme: (theme) => persist({ ...settings, theme }),
-      toggleSound: () => persist({ ...settings, sound: !settings.sound }),
+      toggleSound: () => {
+        const sound = !settings.sound;
+        persist({ ...settings, sound });
+        // Uses the new value directly — `fx` still sees the old settings.
+        if (sound) cue("select", { sound, haptics: settings.haptics });
+      },
       toggleHaptics: () => persist({ ...settings, haptics: !settings.haptics }),
       fx: (name) =>
         cue(name, { sound: settings.sound, haptics: settings.haptics }),

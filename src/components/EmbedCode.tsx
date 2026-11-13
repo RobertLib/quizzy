@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { SITE_URL } from "@/lib/site";
 
-const SNIPPET = `<iframe src="${SITE_URL}/embed/daily" title="Daily trivia quiz" width="100%" height="620" style="border:0;border-radius:16px;max-width:720px" loading="lazy"></iframe>
+// `allow` lets the quiz's "Share result" button reach the share sheet and the
+// clipboard from inside the host page.
+const SNIPPET = `<iframe src="${SITE_URL}/embed/daily" title="Daily trivia quiz" width="100%" height="620" style="border:0;border-radius:16px;max-width:720px" loading="lazy" allow="clipboard-write; web-share"></iframe>
 <p style="font-size:13px"><a href="${SITE_URL}/daily">Daily trivia quiz</a> by Quizzy</p>`;
 
 export default function EmbedCode() {

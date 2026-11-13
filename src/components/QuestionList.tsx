@@ -2,7 +2,7 @@ import type { QuizQuestion } from "@/types/quiz";
 
 const DIFFICULTY_STYLE = {
   easy: "bg-ok-soft text-ok-text",
-  medium: "bg-warn-soft text-warn",
+  medium: "bg-warn-soft text-warn-text",
   hard: "bg-bad-soft text-bad-text",
 } as const;
 

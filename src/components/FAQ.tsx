@@ -7,7 +7,7 @@ const FAQS = [
   {
     question: "What is the Daily Challenge?",
     answer:
-      "Eight questions, the same set for everyone, refreshed at midnight your time. Play it every day to build a daily streak — miss a day and the streak resets to zero. After you finish you'll see how you did against everyone else, and past days stay playable in the daily archive.",
+      "Eight questions, the same set for everyone, refreshed at midnight your time. You get one go: once you start, today's daily counts as played, and replays are practice. Play it every day to build a daily streak — miss a day and the streak resets to zero. After you finish you'll see how you did against everyone else, and past days stay playable in the daily archive.",
   },
   {
     question: "How do I challenge a friend?",
@@ -27,7 +27,7 @@ const FAQS = [
   {
     question: "Where is my progress stored?",
     answer:
-      "In your browser — no account, no sign-up. Your level, XP, badges, streaks and category stats live on this device, and you can wipe them any time from the settings menu. The only thing sent to us is an anonymous Daily Challenge result (which of the eight you got right), so everyone can see how the day went.",
+      "In your browser — no account, no sign-up. Your level, XP, badges, streaks and category stats live on this device, and you can wipe them any time from the settings menu. Two things are sent to us, neither tied to you: your Daily Challenge result (which of the eight you got right), so everyone can see how the day went, and cookie-free usage counts (page views, rounds started and finished, shares) through Vercel Analytics.",
   },
   {
     question: "Where do the questions come from?",

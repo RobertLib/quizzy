@@ -68,7 +68,6 @@ const CUES: Record<SoundName, Note[]> = {
 };
 
 let ctx: AudioContext | null = null;
-let enabled = true;
 
 function context(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -88,12 +87,7 @@ function context(): AudioContext | null {
   return ctx;
 }
 
-export function setSoundEnabled(value: boolean) {
-  enabled = value;
-}
-
-export function play(name: SoundName) {
-  if (!enabled) return;
+function play(name: SoundName) {
   const audio = context();
   if (!audio) return;
 

@@ -118,14 +118,14 @@ export function gradeFor(accuracy: number, perfect: boolean): Grade {
       label: "Flawless",
       blurb: "Every single one. Untouchable.",
       emoji: "👑",
-      tone: "text-gold",
+      tone: "text-gold-text",
     };
   if (accuracy >= 0.9)
     return {
       label: "Brilliant",
       blurb: "Almost perfect — one more run?",
       emoji: "🌟",
-      tone: "text-gold",
+      tone: "text-gold-text",
     };
   if (accuracy >= 0.75)
     return {

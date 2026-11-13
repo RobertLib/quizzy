@@ -5,11 +5,15 @@ import Breadcrumbs from "@/components/Breadcrumbs";
 import QuestionList from "@/components/QuestionList";
 import { CategoryPlayButtons } from "@/components/PlayButtons";
 import { CATEGORIES, categoryBySlug } from "@/data/categories";
-import { questionsInCategory } from "@/data/questions";
+import { topicQuestions } from "@/lib/daily-questions";
 import type { Difficulty } from "@/types/quiz";
 import { pageMetadata } from "@/lib/site";
 
 export const dynamicParams = false;
+
+// Questions in a live daily are left out until their answers are published,
+// so the list changes as the days roll over.
+export const revalidate = 3600;
 
 export function generateStaticParams() {
   return CATEGORIES.map((category) => ({ category: category.slug }));
@@ -17,21 +21,10 @@ export function generateStaticParams() {
 
 type Props = { params: Promise<{ category: string }> };
 
-/** One copy of each question — the original bank has a few repeats. */
-function uniqueQuestions(name: string) {
-  const seen = new Set<string>();
-  return questionsInCategory(name).filter((q) => {
-    const key = q.question.toLowerCase().replace(/\W+/g, " ").trim();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const category = categoryBySlug((await params).category);
   if (!category) return {};
-  const count = uniqueQuestions(category.name).length;
+  const count = topicQuestions(category.name).length;
   return pageMetadata({
     title: `${category.name} Trivia Quiz — ${count} Questions with Answers`,
     description: `Free ${category.name.toLowerCase()} trivia quiz: ${category.tagline} Play a timed round or browse ${count} questions with answers and explanations.`,
@@ -49,7 +42,7 @@ export default async function CategoryPage({ params }: Props) {
   const category = categoryBySlug((await params).category);
   if (!category) notFound();
 
-  const questions = uniqueQuestions(category.name);
+  const questions = topicQuestions(category.name);
   const lower = category.name.toLowerCase();
   const others = CATEGORIES.filter((c) => c.slug !== category.slug);
   const groups = LEVELS.map((level) => ({

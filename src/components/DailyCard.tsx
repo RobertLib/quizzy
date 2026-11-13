@@ -10,6 +10,7 @@ import {
   msUntilTomorrow,
   todayKey,
 } from "@/lib/daily";
+import { dailyResultFor } from "@/lib/storage";
 import { useSettings } from "./SettingsProvider";
 import { useQuizHost } from "./QuizHost";
 
@@ -33,9 +34,7 @@ export default function DailyCard({
 
   const remaining = done ? msUntilTomorrow() : null;
 
-  const todaysResult = profile.history.find(
-    (entry) => entry.mode === "daily" && entry.date.slice(0, 10) === todayKey()
-  );
+  const todaysResult = dailyResultFor(profile, todayKey());
 
   // A compact 7-day strip so the streak is something you can see slipping.
   const last7 = Array.from({ length: 7 }, (_, i) => {
@@ -108,7 +107,7 @@ export default function DailyCard({
                 </div>
               ))}
               {profile.dailyStreak > 0 && (
-                <span className="ml-1 text-xs font-bold text-streak">
+                <span className="ml-1 text-xs font-bold text-streak-text">
                   {profile.dailyStreak}-day streak
                 </span>
               )}

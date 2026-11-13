@@ -78,7 +78,9 @@ export default function Results({
   const leveledUp = levelAfter.level > levelBefore.level;
 
   const [showReview, setShowReview] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [shareState, setShareState] = useState<"idle" | "copied" | "manual">(
+    "idle"
+  );
   // Fire one confetti burst on mount for a strong round.
   const [burst] = useState(() => (accuracy >= 0.7 ? 1 : 0));
 
@@ -117,19 +119,29 @@ export default function Results({
     return `${title}\n${squares}\n${correct}/${total} · ${points.toLocaleString()} pts${streakPart}${dare}\n${shareUrlFor(session, answers, points)}`;
   }, [grid, session, answers, correct, total, points, bestStreak]);
 
+  // Inside another site's iframe both the share sheet and the clipboard can be
+  // blocked, so each step falls through to the next — ending with the text
+  // shown for copying by hand.
   const share = async () => {
     fx("click");
     track("share", { mode: session.mode });
-    try {
-      if (navigator.share) {
+    if (navigator.share) {
+      try {
         await navigator.share({ text: shareText });
         return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
       }
+    }
+    try {
       await navigator.clipboard.writeText(shareText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
+      setShareState("copied");
+      setTimeout(
+        () => setShareState((state) => (state === "copied" ? "idle" : state)),
+        2200
+      );
     } catch {
-      /* dismissed or blocked — nothing to do */
+      setShareState("manual");
     }
   };
 
@@ -137,6 +149,7 @@ export default function Results({
     accuracy >= 0.9 ? "text-gold" : accuracy >= 0.6 ? "text-brand" : "text-warn";
   // A daily can only be played once, so "play again" sends them elsewhere.
   const replayable = session.mode === "custom";
+  const practice = session.mode === "practice";
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -150,6 +163,12 @@ export default function Results({
             {grade.label}
           </h2>
           <p className="mt-1 text-sm text-muted">{grade.blurb}</p>
+          {practice && (
+            <p className="mt-2 text-xs font-semibold text-subtle">
+              Practice round — it doesn&apos;t count towards your stats, XP or
+              badges.
+            </p>
+          )}
 
           <div className="mt-7 flex flex-col items-center justify-center gap-6 sm:flex-row sm:gap-10">
             <Ring progress={accuracy} size={148} stroke={11} className={ringTone}>
@@ -173,7 +192,7 @@ export default function Results({
               />
               <StatTile
                 label="XP earned"
-                value={`+${xpFromPoints(points)}`}
+                value={practice ? "—" : `+${xpFromPoints(points)}`}
                 emoji="⭐"
               />
               <StatTile
@@ -196,7 +215,7 @@ export default function Results({
           {/* -------------------------------------------------- level progress */}
           <div className="mt-8 text-left">
             <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
-              <span className={leveledUp ? "text-gold" : "text-muted"}>
+              <span className={leveledUp ? "text-gold-text" : "text-muted"}>
                 {leveledUp ? "🎉 Level up! " : ""}Level {levelAfter.level}
               </span>
               <span className="tnum text-subtle">
@@ -267,8 +286,23 @@ export default function Results({
           onClick={share}
           className="rounded-2xl border border-line bg-surface px-6 py-3.5 text-sm font-bold text-ink transition hover:border-brand/40 hover:bg-brand-soft active:scale-[0.99]"
         >
-          {copied ? "Copied to clipboard ✓" : "Share result 📋"}
+          {shareState === "copied" ? "Copied to clipboard ✓" : "Share result 📋"}
         </button>
+        {shareState === "manual" && (
+          <label className="block sm:col-span-2">
+            <span className="mb-1 block text-xs font-semibold text-muted">
+              Sharing is blocked here — copy your result:
+            </span>
+            <textarea
+              readOnly
+              autoFocus
+              value={shareText}
+              rows={5}
+              onFocus={(event) => event.currentTarget.select()}
+              className="w-full resize-none rounded-xl border border-line bg-surface-2 p-3 font-mono text-xs text-ink"
+            />
+          </label>
+        )}
         {misses > 0 && (
           <button
             onClick={() => {

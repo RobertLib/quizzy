@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { QuizAnswer, QuizSession } from "@/types/quiz";
-import { decodeHtmlEntities, shuffleArray } from "@/lib/quiz-api";
+import { shuffleArray } from "@/lib/quiz-api";
 import {
   DIFFICULTY_MULTIPLIER,
   TIME_LIMIT,
@@ -34,12 +34,12 @@ const KEYS = ["1", "2", "3", "4", "5", "6"];
 
 const DIFFICULTY_STYLE = {
   easy: "bg-ok-soft text-ok-text ring-1 ring-ok/25",
-  medium: "bg-warn-soft text-warn ring-1 ring-warn/25",
+  medium: "bg-warn-soft text-warn-text ring-1 ring-warn/25",
   hard: "bg-bad-soft text-bad-text ring-1 ring-bad/25",
 } as const;
 
 export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
-  const { questions, config, mode, isOffline, dailyKey } = session;
+  const { questions, config, mode, dailyKey } = session;
   const { fx } = useSettings();
 
   const [index, setIndex] = useState(0);
@@ -131,9 +131,9 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
       setAnswers((prev) => [
         ...prev,
         {
-          question: decodeHtmlEntities(question.question),
-          userAnswer: choice ? decodeHtmlEntities(choice) : "",
-          correctAnswer: decodeHtmlEntities(question.correct_answer),
+          question: question.question,
+          userAnswer: choice ?? "",
+          correctAnswer: question.correct_answer,
           isCorrect,
           category: question.category,
           difficulty: question.difficulty,
@@ -249,8 +249,17 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (confirmQuit || !question) return;
+      // Leave browser and OS shortcuts alone: Cmd/Ctrl+C must copy, not
+      // answer C, and Cmd+1 must switch tabs, not answer A.
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
       const target = event.target as HTMLElement | null;
-      if (target && ["INPUT", "TEXTAREA"].includes(target.tagName)) return;
+      if (
+        target &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
 
       if (revealed) {
         if (event.key === "Enter" || event.key === " ") {
@@ -320,9 +329,11 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
             <div className="text-[0.7rem] font-semibold uppercase tracking-wider text-subtle">
               {mode === "daily"
                 ? "Daily Challenge"
-                : mode === "archive" && dailyKey
-                  ? `Daily #${dailyNumber(dailyKey)}`
-                  : "Question"}
+                : dailyKey
+                  ? `Daily #${dailyNumber(dailyKey)}${mode === "practice" ? " · practice" : ""}`
+                  : mode === "practice"
+                    ? "Practice"
+                    : "Question"}
             </div>
             <div className="tnum text-sm font-bold text-ink">
               {index + 1}
@@ -348,7 +359,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
             className="animate-pop flex items-center gap-1.5 rounded-xl bg-linear-to-r from-streak/20 to-warn/10 px-2.5 py-1.5 ring-1 ring-streak/30"
           >
             <span className="text-base leading-none">🔥</span>
-            <span className="tnum text-sm font-bold text-streak">
+            <span className="tnum text-sm font-bold text-streak-text">
               {streak}
               {multiplier > 1 && (
                 <span className="ml-1 text-[0.7rem] font-extrabold">
@@ -370,7 +381,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
           >
             <span
               className={`tnum text-xs font-bold ${
-                urgent ? "animate-pulse text-bad" : "text-ink"
+                urgent ? "animate-pulse text-bad-text" : "text-ink"
               }`}
             >
               {Math.ceil(timeLeft)}
@@ -405,17 +416,10 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
 
       {/* ----------------------------------------------------------- question */}
       <div key={index} className="card animate-rise overflow-hidden">
-        {isOffline && (
-          <div className="flex items-center gap-2 border-b border-line bg-warn-soft px-5 py-2.5 text-xs font-medium text-warn">
-            <span>⚡</span>
-            Offline pack — playing from the built-in question bank.
-          </div>
-        )}
-
         <div className="p-5 sm:p-7">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="rounded-lg bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand">
-              {decodeHtmlEntities(question.category)}
+              {question.category}
             </span>
             <span
               className={`rounded-lg px-2.5 py-1 text-xs font-semibold capitalize ${
@@ -432,7 +436,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
           </div>
 
           <h2 className="text-balance text-xl font-bold leading-snug text-ink sm:text-2xl">
-            {decodeHtmlEntities(question.question)}
+            {question.question}
           </h2>
 
           {/* --------------------------------------------------------- options */}
@@ -499,7 +503,7 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
                       : String.fromCharCode(65 + i)}
                   </span>
                   <span className="flex-1 text-[0.95rem] font-medium sm:text-base">
-                    {decodeHtmlEntities(option)}
+                    {option}
                   </span>
                 </button>
               );
@@ -523,17 +527,17 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
                 ) : timedOut ? (
                   <span className="text-bad-text">
                     Time&apos;s up — the answer was{" "}
-                    {decodeHtmlEntities(question.correct_answer)}
+                    {question.correct_answer}
                   </span>
                 ) : wasSkipped ? (
                   <span className="text-muted">
                     Skipped — streak kept. Answer:{" "}
-                    {decodeHtmlEntities(question.correct_answer)}
+                    {question.correct_answer}
                   </span>
                 ) : (
                   <span className="text-bad-text">
                     Not quite — it was{" "}
-                    {decodeHtmlEntities(question.correct_answer)}
+                    {question.correct_answer}
                   </span>
                 )}
               </p>
@@ -594,31 +598,81 @@ export default function QuizGame({ session, onFinish, onQuit }: QuizGameProps) {
 
       {/* -------------------------------------------------------- quit dialog */}
       {confirmQuit && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="card animate-pop w-full max-w-sm p-6 text-center">
-            <div className="mb-3 text-4xl">🚪</div>
-            <h3 className="mb-2 text-lg font-bold text-ink">Leave this quiz?</h3>
-            <p className="mb-6 text-sm text-muted">
-              Your progress in this round won&apos;t be saved.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmQuit(false)}
-                className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-brand-contrast transition hover:bg-brand-strong"
-              >
-                Keep playing
-              </button>
-              <button
-                onClick={onQuit}
-                className="flex-1 rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-3 hover:text-ink"
-              >
-                Leave
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuitDialog
+          isDaily={mode === "daily"}
+          // The clock keeps running — pausing it would hand out free thinking
+          // time — so the dialog says how much is left.
+          secondsLeft={timed && !revealed ? Math.ceil(timeLeft) : null}
+          onStay={() => setConfirmQuit(false)}
+          onLeave={onQuit}
+        />
       )}
     </div>
+  );
+}
+
+/** Native modal dialog: focus is trapped, Escape keeps playing. */
+function QuitDialog({
+  isDaily,
+  secondsLeft,
+  onStay,
+  onLeave,
+}: {
+  isDaily: boolean;
+  secondsLeft: number | null;
+  onStay: () => void;
+  onLeave: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby="quit-title"
+      aria-describedby="quit-description"
+      onCancel={(event) => {
+        event.preventDefault();
+        onStay();
+      }}
+      className="card animate-pop m-auto w-[calc(100%-2rem)] max-w-sm p-6 text-center text-ink backdrop:bg-black/50 backdrop:backdrop-blur-sm"
+    >
+      <div className="mb-3 text-4xl" aria-hidden="true">
+        🚪
+      </div>
+      <h3 id="quit-title" className="mb-2 text-lg font-bold text-ink">
+        Leave this quiz?
+      </h3>
+      <p id="quit-description" className="text-sm text-muted">
+        {isDaily
+          ? "Today's daily already counts as played. You can replay it for practice later, but this score won't count."
+          : "Your progress in this round won't be saved."}
+      </p>
+      {secondsLeft !== null && (
+        <p className="tnum mt-3 text-xs font-semibold text-bad-text">
+          ⏱ The clock is still running — {secondsLeft}s left.
+        </p>
+      )}
+      <div className="mt-6 flex gap-3">
+        <button
+          onClick={onStay}
+          className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-brand-contrast transition hover:bg-brand-strong"
+        >
+          Keep playing
+        </button>
+        <button
+          onClick={onLeave}
+          className="flex-1 rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-3 hover:text-ink"
+        >
+          Leave
+        </button>
+      </div>
+    </dialog>
   );
 }
 

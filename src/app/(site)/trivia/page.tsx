@@ -1,8 +1,11 @@
 import Link from "next/link";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { CATEGORIES } from "@/data/categories";
-import { questionsInCategory } from "@/data/questions";
+import { topicQuestions } from "@/lib/daily-questions";
 import { pageMetadata } from "@/lib/site";
+
+// Counts match the topic pages, which change as dailies go live.
+export const revalidate = 3600;
 
 export const metadata = pageMetadata({
   title: "Trivia Questions by Topic — Free Quizzes with Answers",
@@ -41,7 +44,7 @@ export default function TopicsPage() {
                 </span>
                 <span className="mt-0.5 block text-sm text-muted">{category.tagline}</span>
                 <span className="mt-2 block text-xs font-semibold text-brand">
-                  {questionsInCategory(category.name).length} questions with answers →
+                  {topicQuestions(category.name).length} questions with answers →
                 </span>
               </span>
             </Link>

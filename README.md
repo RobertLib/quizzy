@@ -9,6 +9,7 @@ Progress lives in the browser — there are no accounts.
 ```bash
 npm install
 npm run dev
+npm test   # Node's built-in test runner — no extra dependencies
 ```
 
 ## Configuration

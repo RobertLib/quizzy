@@ -81,7 +81,7 @@ export default function HeaderBar({
               title={`${profile.dailyStreak}-day daily streak`}
             >
               <span className="text-sm leading-none">🔥</span>
-              <span className="tnum text-xs font-bold text-streak">
+              <span className="tnum text-xs font-bold text-streak-text">
                 {profile.dailyStreak}
               </span>
             </div>
@@ -156,10 +156,7 @@ export default function HeaderBar({
                   label="Sound effects"
                   emoji="🔊"
                   checked={settings.sound}
-                  onChange={() => {
-                    toggleSound();
-                    if (!settings.sound) fx("select");
-                  }}
+                  onChange={toggleSound}
                 />
                 <ToggleRow
                   label="Vibration"

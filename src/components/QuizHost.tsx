@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { usePathname } from "next/navigation";
 import { track } from "@vercel/analytics";
@@ -17,15 +18,18 @@ import { DAILY_QUESTION_COUNT, todayKey } from "@/lib/daily";
 import {
   applySession,
   emptyProfile,
+  hasPlayedDaily,
   loadProfile,
+  markDailyPlayed,
   normalizeDailyStreak,
   resetProfile,
   saveProfile,
+  subscribeProfile,
   type Profile,
 } from "@/lib/storage";
 import { grantAchievements, type Achievement } from "@/lib/achievements";
 import { levelProgress, type LevelProgress } from "@/lib/scoring";
-import type { Challenge, QuizConfig, QuizSession } from "@/types/quiz";
+import type { Challenge, GameMode, QuizConfig, QuizSession } from "@/types/quiz";
 import QuizGame, { type FinishedSession } from "./QuizGame";
 import Results from "./Results";
 import HeaderBar from "./HeaderBar";
@@ -65,6 +69,13 @@ export function useQuizHost(): QuizHostValue {
   return ctx;
 }
 
+const serverProfile = () => emptyProfile;
+
+/** The profile as stored right now, with a lapsed daily streak reset. */
+function currentProfile(): Profile {
+  return normalizeDailyStreak(loadProfile());
+}
+
 /**
  * Owns the player's profile and the round being played. Page content is
  * passed as children and shown while no round is running; any page can start
@@ -80,13 +91,9 @@ export default function QuizHost({
   const ready = useHydrated();
   const pathname = usePathname();
 
-  // Stored profile is the baseline; in-session updates override it.
-  const stored = useMemo(
-    () => (ready ? normalizeDailyStreak(loadProfile()) : emptyProfile),
-    [ready]
-  );
-  const [edited, setEdited] = useState<Profile | null>(null);
-  const profile = edited ?? stored;
+  // Shared with other tabs: a round finished elsewhere shows up here too.
+  const stored = useSyncExternalStore(subscribeProfile, loadProfile, serverProfile);
+  const profile = useMemo(() => normalizeDailyStreak(stored), [stored]);
 
   const [play, setPlay] = useState<Play | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -94,13 +101,17 @@ export default function QuizHost({
     null
   );
 
-  // Navigating away abandons the round — no effect needed to reset it.
+  // Leaving the page a round belongs to abandons it — links, back and forward
+  // alike — so coming back never restarts it from the first question.
+  if (play && play.path !== pathname) setPlay(null);
   const active = play && play.path === pathname ? play : null;
   const view = active?.view ?? "home";
 
+  // Where the player is now, for requests that resolve after they've moved on.
+  const pathRef = useRef(pathname);
   useEffect(() => {
-    if (ready) saveProfile(stored);
-  }, [ready, stored]);
+    pathRef.current = pathname;
+  }, [pathname]);
 
   const previousView = useRef(view);
   useEffect(() => {
@@ -110,126 +121,141 @@ export default function QuizHost({
     }
   }, [view]);
 
-  const begin = useCallback(
-    (session: QuizSession) => {
-      setPlay({ path: pathname, view: "playing", session });
-    },
-    [pathname]
-  );
-
   const startCustom = useCallback(
     async (config: QuizConfig, source = "custom") => {
+      const from = pathname;
       setIsLoading(true);
       setError(null);
       try {
         const data = await fetchQuizQuestions(config.amount, config);
+        if (pathRef.current !== from) return;
         if (!data.results.length) {
           setError({
-            path: pathname,
+            path: from,
             message: "No questions matched that combination. Try widening it.",
           });
           return;
         }
         track("quiz_start", { mode: "custom", source });
-        begin({
-          questions: data.results,
-          config: { ...config, amount: data.results.length },
-          mode: "custom",
-          isOffline: !!data.isOffline,
+        setPlay({
+          path: from,
+          view: "playing",
+          session: {
+            questions: data.results,
+            config: { ...config, amount: data.results.length },
+            mode: "custom",
+          },
         });
       } catch {
         setError({
-          path: pathname,
+          path: from,
           message: "Couldn't load questions. Check your connection and try again.",
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [begin, pathname]
+    [pathname]
   );
 
   const startDaily = useCallback(
     async (key: string, challenge?: Challenge) => {
+      const from = pathname;
       setIsLoading(true);
       setError(null);
       try {
         const questions = await fetchDailyQuiz(key);
-        // Today's daily counts once; anything else is practice.
-        const mode =
-          key === todayKey() && profile.dailyLastPlayed !== key
-            ? "daily"
-            : "archive";
+        if (pathRef.current !== from) return;
+
+        // Read storage afresh: another tab may have played it meanwhile.
+        const latest = currentProfile();
+        let mode: GameMode = "archive";
+        if (key === todayKey() && !latest.dailyCompleted.includes(key)) {
+          mode = "daily";
+          // Counted the moment it starts, so a reload can't buy a retry.
+          saveProfile(markDailyPlayed(latest, key));
+        } else if (hasPlayedDaily(latest, key)) {
+          mode = "practice";
+        }
+
         track("quiz_start", {
           mode,
           source: challenge ? "challenge" : embed ? "embed" : "daily",
         });
-        begin({
-          questions,
-          config: {
-            categories: [],
-            difficulty: "mixed",
-            amount: Math.min(DAILY_QUESTION_COUNT, questions.length),
-            timed: true,
+        setPlay({
+          path: from,
+          view: "playing",
+          session: {
+            questions,
+            config: {
+              categories: [],
+              difficulty: "mixed",
+              amount: Math.min(DAILY_QUESTION_COUNT, questions.length),
+              timed: true,
+            },
+            mode,
+            dailyKey: key,
+            challenge,
           },
-          mode,
-          isOffline: false,
-          dailyKey: key,
-          challenge,
         });
       } catch {
         setError({
-          path: pathname,
+          path: from,
           message: "Couldn't load the daily. Check your connection and try again.",
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [begin, embed, pathname, profile.dailyLastPlayed]
+    [embed, pathname]
   );
 
   const handleFinish = useCallback(
     (result: FinishedSession) => {
       if (!active) return;
       const { session } = active;
+      const correct = result.answers.filter((a) => a.isCorrect).length;
 
-      const levelBefore = levelProgress(profile.xp);
-      const folded = applySession(profile, {
-        answers: result.answers,
-        points: result.points,
-        bestStreak: result.bestStreak,
-        mode: session.mode,
-      });
-      const { profile: withBadges, unlocked } = grantAchievements(folded, {
-        correct: result.answers.filter((a) => a.isCorrect).length,
-        total: result.answers.length,
-        points: result.points,
-        bestStreak: result.bestStreak,
-        powerUpsUsed: result.powerUpsUsed,
-        timed: session.config.timed,
-        mode: session.mode,
-      });
+      // Fold into what's stored now, not what this tab loaded earlier.
+      const base = currentProfile();
+      const levelBefore = levelProgress(base.xp);
+      let outcome: ResultState = {
+        result,
+        levelBefore,
+        levelAfter: levelBefore,
+        unlocked: [],
+      };
 
-      setEdited(withBadges);
-      saveProfile(withBadges);
+      // Practice rounds replay answers the player has already seen.
+      if (session.mode !== "practice") {
+        const folded = applySession(base, {
+          answers: result.answers,
+          points: result.points,
+          bestStreak: result.bestStreak,
+          mode: session.mode,
+          dailyKey: session.dailyKey,
+        });
+        const { profile: withBadges, unlocked } = grantAchievements(folded, {
+          correct,
+          total: result.answers.length,
+          points: result.points,
+          bestStreak: result.bestStreak,
+          powerUpsUsed: result.powerUpsUsed,
+          timed: session.config.timed,
+          mode: session.mode,
+        });
+        saveProfile(withBadges);
+        outcome = { ...outcome, levelAfter: levelProgress(withBadges.xp), unlocked };
+      }
+
       track("quiz_finish", {
         mode: session.mode,
-        correct: result.answers.filter((a) => a.isCorrect).length,
+        correct,
         total: result.answers.length,
       });
-      setPlay({
-        ...active,
-        view: "results",
-        outcome: {
-          result,
-          levelBefore,
-          levelAfter: levelProgress(withBadges.xp),
-          unlocked,
-        },
-      });
+      setPlay({ ...active, view: "results", outcome });
     },
-    [active, profile]
+    [active]
   );
 
   const goHome = useCallback(() => {
@@ -238,7 +264,7 @@ export default function QuizHost({
 
   const playAgain = useCallback(() => {
     if (!active) return;
-    // The daily is once a day — send them back to pick something else.
+    // Dailies and practice can't be dealt again — send them back to pick.
     if (active.session.mode !== "custom") {
       setPlay(null);
       return;
@@ -254,18 +280,16 @@ export default function QuizHost({
         outcome.result.answers[index] && !outcome.result.answers[index].isCorrect
     );
     if (missed.length === 0) return;
-    begin({
-      questions: missed,
-      config: { ...session.config, amount: missed.length, timed: false },
-      mode: "custom",
-      isOffline: session.isOffline,
+    setPlay({
+      path: active.path,
+      view: "playing",
+      session: {
+        questions: missed,
+        config: { ...session.config, amount: missed.length, timed: false },
+        mode: "practice",
+      },
     });
-  }, [active, begin]);
-
-  const handleReset = useCallback(() => {
-    resetProfile();
-    setEdited(emptyProfile);
-  }, []);
+  }, [active]);
 
   const value = useMemo<QuizHostValue>(
     () => ({ profile, ready, isLoading, embed, startCustom, startDaily }),
@@ -279,7 +303,7 @@ export default function QuizHost({
           <HeaderBar
             profile={profile}
             ready={ready}
-            onResetProgress={handleReset}
+            onResetProgress={resetProfile}
             onHome={goHome}
           />
         )}

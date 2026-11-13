@@ -5,6 +5,12 @@ import type { DailyStats } from "@/lib/daily-stats";
 
 const KEEP_SECONDS = 400 * 86_400;
 const DEDUPE_SECONDS = 2 * 86_400;
+/**
+ * Devices behind one address (a household, an office, a phone network) each
+ * count once, up to this many a day — so changing the User-Agent can't be
+ * used to stuff the numbers.
+ */
+const MAX_RESULTS_PER_IP = 10;
 
 const statsKey = (date: string) => `quizzy:daily:${date}`;
 
@@ -19,15 +25,25 @@ async function readStats(date: string): Promise<DailyStats> {
   };
 }
 
-/** Salted per day, so the stored value can't be linked across days. */
-async function visitorId(request: NextRequest, date: string): Promise<string> {
+async function digest(text: string): Promise<string> {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Buffer.from(bytes).toString("base64url").slice(0, 22);
+}
+
+/**
+ * Hashed ids for one result: the address alone, and the address plus the
+ * browser. Salted per day, so stored values can't be linked across days.
+ */
+async function visitorIds(request: NextRequest, date: string) {
   const ip =
     request.headers.get("x-real-ip") ??
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     "unknown";
-  const data = new TextEncoder().encode(`${date}:${ip}:${request.headers.get("user-agent") ?? ""}`);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Buffer.from(digest).toString("base64url").slice(0, 22);
+  const agent = request.headers.get("user-agent") ?? "";
+  return {
+    address: await digest(`${date}:${ip}`),
+    device: await digest(`${date}:${ip}:${agent}`),
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -67,16 +83,26 @@ export async function POST(request: NextRequest) {
 
   try {
     const key = statsKey(date);
-    // One result per visitor per day; repeats just read the stats back.
+    const ids = await visitorIds(request, date);
+    // One result per device per day; repeats just read the stats back.
     const fresh = await redis([
       "SET",
-      `quizzy:seen:${date}:${await visitorId(request, date)}`,
+      `quizzy:seen:${date}:${ids.device}`,
       "1",
       "NX",
       "EX",
       DEDUPE_SECONDS,
     ]);
+    let counted = false;
     if (fresh === "OK") {
+      const addressKey = `quizzy:ip:${date}:${ids.address}`;
+      const [fromAddress] = await redisPipeline([
+        ["INCR", addressKey],
+        ["EXPIRE", addressKey, DEDUPE_SECONDS],
+      ]);
+      counted = Number(fromAddress) <= MAX_RESULTS_PER_IP;
+    }
+    if (counted) {
       const correct = [...grid].filter((c) => c === "g").length;
       const commands: (string | number)[][] = [
         ["HINCRBY", key, "plays", 1],

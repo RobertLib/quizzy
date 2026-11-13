@@ -1,6 +1,6 @@
 import type { GameMode, QuizAnswer } from "@/types/quiz";
 import { xpFromPoints } from "./scoring";
-import { todayKey, yesterdayKey } from "./daily";
+import { addDays, keyFrom, todayKey, yesterdayKey } from "./daily";
 
 const PROFILE_KEY = "quizzy:profile:v1";
 const SETTINGS_KEY = "quizzy:settings:v1";
@@ -12,11 +12,14 @@ export interface CategoryStat {
 }
 
 export interface HistoryEntry {
+  /** When the round finished (ISO timestamp, UTC). */
   date: string;
   mode: GameMode;
   points: number;
   correct: number;
   total: number;
+  /** The daily's own date, for daily and archive rounds. */
+  dailyKey?: string;
 }
 
 export interface Profile {
@@ -35,6 +38,7 @@ export interface Profile {
   dailyStreak: number;
   dailyBestStreak: number;
   dailyLastPlayed: string | null;
+  /** Days whose daily was started on the day — each counts once. */
   dailyCompleted: string[];
   history: HistoryEntry[];
 }
@@ -73,57 +77,157 @@ export const defaultSettings: Settings = {
   haptics: true,
 };
 
-function readJson<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
+/** Stored JSON over the defaults; anything that isn't an object is ignored. */
+function parseOver<T extends object>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    return { ...fallback, ...(JSON.parse(raw) as object) } as T;
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { ...fallback, ...parsed };
+    }
   } catch {
-    return fallback;
+    /* corrupt — start over */
   }
+  return fallback;
 }
 
-function writeJson(key: string, value: unknown) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* storage full or blocked — stats are a nice-to-have, never fatal */
-  }
+/* -------------------------------------------------------------- profile store
+ * The profile lives in localStorage and is shared by every open tab: reads go
+ * through a cached snapshot (stable for useSyncExternalStore), writes notify
+ * this tab's subscribers, and the `storage` event brings in other tabs'.
+ * If storage is unavailable, progress is kept in memory for this visit.
+ */
+const profileListeners = new Set<() => void>();
+let snapshotRaw: string | null = null;
+let snapshot: Profile = emptyProfile;
+let memoryOnly = false;
+
+function notifyProfile() {
+  for (const listener of profileListeners) listener();
 }
 
 export function loadProfile(): Profile {
-  return readJson(PROFILE_KEY, emptyProfile);
+  if (typeof window === "undefined" || memoryOnly) return snapshot;
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(PROFILE_KEY);
+  } catch {
+    return snapshot;
+  }
+  if (raw !== snapshotRaw) {
+    snapshotRaw = raw;
+    snapshot = parseOver(raw, emptyProfile);
+  }
+  return snapshot;
 }
 
 export function saveProfile(profile: Profile) {
-  writeJson(PROFILE_KEY, profile);
-}
-
-export function loadSettings(): Settings {
-  return readJson(SETTINGS_KEY, defaultSettings);
-}
-
-export function saveSettings(settings: Settings) {
-  writeJson(SETTINGS_KEY, settings);
+  const raw = JSON.stringify(profile);
+  snapshot = profile;
+  snapshotRaw = raw;
+  try {
+    window.localStorage.setItem(PROFILE_KEY, raw);
+  } catch {
+    // Full or blocked: keep playing from memory rather than losing progress.
+    memoryOnly = true;
+  }
+  notifyProfile();
 }
 
 export function resetProfile() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(PROFILE_KEY);
+  snapshot = emptyProfile;
+  snapshotRaw = null;
+  try {
+    window.localStorage.removeItem(PROFILE_KEY);
+  } catch {
+    /* blocked — the in-memory reset still applies */
+  }
+  notifyProfile();
 }
+
+export function subscribeProfile(listener: () => void): () => void {
+  profileListeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === PROFILE_KEY || event.key === null) listener();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    profileListeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+/* ------------------------------------------------------------------ settings */
+export function loadSettings(): Settings {
+  if (typeof window === "undefined") return defaultSettings;
+  try {
+    return parseOver(window.localStorage.getItem(SETTINGS_KEY), defaultSettings);
+  } catch {
+    return defaultSettings;
+  }
+}
+
+export function saveSettings(settings: Settings) {
+  try {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    /* storage full or blocked — settings just won't be remembered */
+  }
+}
+
+/* ------------------------------------------------------------------- dailies */
+
+/**
+ * Starting today's daily uses it up: the streak counts from here, and a
+ * reload or a quit can only replay it as practice.
+ */
+export function markDailyPlayed(profile: Profile, key: string): Profile {
+  if (profile.dailyCompleted.includes(key)) return profile;
+  const last = profile.dailyLastPlayed;
+  if (last && last > key) return profile;
+
+  const dailyStreak = last === addDays(key, -1) ? profile.dailyStreak + 1 : 1;
+  return {
+    ...profile,
+    dailyStreak,
+    dailyLastPlayed: key,
+    dailyBestStreak: Math.max(profile.dailyBestStreak, dailyStreak),
+    dailyCompleted: [key, ...profile.dailyCompleted].slice(0, 60),
+  };
+}
+
+/** The player's first finished round of a given day's daily, if any. */
+export function dailyResultFor(
+  profile: Profile,
+  key: string
+): HistoryEntry | undefined {
+  return profile.history.find(
+    (entry) =>
+      (entry.dailyKey ??
+        // Entries saved before `dailyKey` existed: the local date they were
+        // played on is the day of the daily.
+        (entry.mode === "daily" ? keyFrom(new Date(entry.date)) : undefined)) === key
+  );
+}
+
+/** True once a day's daily has been played — replays are practice. */
+export function hasPlayedDaily(profile: Profile, key: string): boolean {
+  return profile.dailyCompleted.includes(key) || dailyResultFor(profile, key) !== undefined;
+}
+
+/* ------------------------------------------------------------------ sessions */
 
 export interface SessionSummary {
   answers: QuizAnswer[];
   points: number;
   bestStreak: number;
   mode: GameMode;
+  dailyKey?: string;
 }
 
 /** Folds a finished session into the profile. Pure — returns a new object. */
 export function applySession(profile: Profile, session: SessionSummary): Profile {
-  const { answers, points, bestStreak, mode } = session;
+  const { answers, points, bestStreak, mode, dailyKey } = session;
   const correct = answers.filter((a) => a.isCorrect).length;
   const total = answers.length;
   const perfect = total > 0 && correct === total;
@@ -144,7 +248,16 @@ export function applySession(profile: Profile, session: SessionSummary): Profile
     profile.hardCorrect +
     answers.filter((a) => a.isCorrect && a.difficulty === "hard").length;
 
-  const next: Profile = {
+  const entry: HistoryEntry = {
+    date: new Date().toISOString(),
+    mode,
+    points,
+    correct,
+    total,
+    ...(dailyKey ? { dailyKey } : {}),
+  };
+
+  return {
     ...profile,
     xp: profile.xp + xpFromPoints(points),
     totalPoints: profile.totalPoints + points,
@@ -157,24 +270,8 @@ export function applySession(profile: Profile, session: SessionSummary): Profile
     fastAnswers,
     hardCorrect,
     categories,
-    history: [
-      { date: new Date().toISOString(), mode, points, correct, total },
-      ...profile.history,
-    ].slice(0, 30),
+    history: [entry, ...profile.history].slice(0, 30),
   };
-
-  if (mode === "daily") {
-    const today = todayKey();
-    if (next.dailyLastPlayed !== today) {
-      const continued = next.dailyLastPlayed === yesterdayKey();
-      next.dailyStreak = continued ? next.dailyStreak + 1 : 1;
-      next.dailyLastPlayed = today;
-      next.dailyBestStreak = Math.max(next.dailyBestStreak, next.dailyStreak);
-      next.dailyCompleted = [today, ...next.dailyCompleted].slice(0, 60);
-    }
-  }
-
-  return next;
 }
 
 /** A daily streak lapses once the player misses a whole day. */
