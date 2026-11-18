@@ -3,6 +3,8 @@ import type { QuizApiResponse, QuizQuestion, Difficulty } from "@/types/quiz";
 import { shuffleArray } from "@/lib/quiz-api";
 import { questionBank } from "@/data/questions";
 import { unrevealedDailyIds } from "@/lib/daily-questions";
+import { localizeQuestion } from "@/data/questions/localize";
+import { isLocale, type Locale } from "@/i18n/config";
 
 /** Our category labels mapped to Open Trivia DB category ids. */
 const CATEGORY_TO_API_ID: Record<string, number> = {
@@ -154,19 +156,25 @@ export async function GET(request: NextRequest) {
     .split(",")
     .map((c) => c.trim())
     .filter((c) => c in CATEGORY_TO_API_ID);
+  const lang = searchParams.get("lang") ?? "en";
+  const locale: Locale = isLocale(lang) ? lang : "en";
+
+  // Open Trivia DB is English-only, so other languages play our bank alone.
+  const upstream =
+    locale === "en" ? await upstreamQuestions(amount, categories, difficulty) : [];
 
   const collected: QuizQuestion[] = [];
   const seen = new Set<string>();
-  for (const question of await upstreamQuestions(amount, categories, difficulty)) {
+  for (const question of upstream) {
     const key = normalizeKey(question.question);
     if (seen.has(key)) continue;
     seen.add(key);
     collected.push(question);
   }
 
-  const topUp = shuffleArray(bankFor(categories, difficulty)).filter(
-    (q) => !seen.has(normalizeKey(q.question))
-  );
+  const topUp = shuffleArray(bankFor(categories, difficulty))
+    .filter((q) => !seen.has(normalizeKey(q.question)))
+    .map((q) => localizeQuestion(q, locale));
 
   // Balance across categories *after* the top-up, otherwise whichever category
   // the upstream happened to answer would dominate the round. Upstream

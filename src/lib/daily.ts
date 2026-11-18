@@ -1,3 +1,5 @@
+import { INTL_LOCALE, type Locale } from "@/i18n/config";
+
 /**
  * Calendar helpers for the daily challenge. Client-safe: this file must not
  * import the question bank (see daily-questions.ts for that).
@@ -62,10 +64,13 @@ export function dailyNumber(key: string = todayKey()): number {
   return dayNumber(key) - NUMBER_OFFSET;
 }
 
-/** "13 November 2026" — rendered in UTC so the server and client agree. */
-export function formatDateKey(key: string): string {
+/**
+ * "13 November 2026" / "13. listopadu 2026" — rendered in UTC so the server
+ * and client agree.
+ */
+export function formatDateKey(key: string, locale: Locale = "en"): string {
   const [y, m, d] = key.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(INTL_LOCALE[locale], {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -112,10 +117,11 @@ export function msUntilTomorrow(now: Date = new Date()): number {
   return next.getTime() - now.getTime();
 }
 
-export function formatCountdown(ms: number): string {
+/** Hours, then zero-padded minutes and seconds, for "5h 03m 09s". */
+export function countdownParts(ms: number): [number, string, string] {
   const total = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  return `${h}h ${pad(m)}m ${pad(s)}s`;
+  return [h, pad(m), pad(s)];
 }

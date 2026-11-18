@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      // Challenge (/c/) and embed pages stay crawlable on purpose: link-preview
+      // Challenge (/c/, /cs/vyzva/) and embed pages stay crawlable on purpose: link-preview
       // bots honour robots.txt, and those pages carry noindex instead.
       disallow: "/api/",
     },

@@ -9,6 +9,9 @@
  *   so a batch dated the day after a deploy could still rewrite a played day.
  * - Fixing a question's wording, answers, explanation or difficulty is fine;
  *   it just changes that question wherever it appeared in the archive.
+ * - Every question needs a Czech translation under the same id in
+ *   src/data/questions/cs/ (`npm test` fails without one). Keep the wrong
+ *   answers in the same order as in English.
  */
 
 /** The original bundled bank. */

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   DAILY_QUESTION_COUNT,
+  countdownParts,
   dailyNumber,
-  formatCountdown,
   keyFrom,
   msUntilTomorrow,
   todayKey,
@@ -13,6 +13,9 @@ import {
 import { dailyResultFor } from "@/lib/storage";
 import { useSettings } from "./SettingsProvider";
 import { useQuizHost } from "./QuizHost";
+import { useLocale, useUi } from "./LocaleProvider";
+import { INTL_LOCALE } from "@/i18n/config";
+import { pathFor } from "@/i18n/routes";
 
 export default function DailyCard({
   showArchiveLink = true,
@@ -22,6 +25,9 @@ export default function DailyCard({
   const { fx } = useSettings();
   const { profile, ready, isLoading, embed, startDaily } = useQuizHost();
   const [, tick] = useState(0);
+  const locale = useLocale();
+  const ui = useUi();
+  const t = ui.dailyCard;
 
   const done = ready && profile.dailyLastPlayed === todayKey();
 
@@ -43,7 +49,7 @@ export default function DailyCard({
     const key = keyFrom(date);
     return {
       key,
-      label: date.toLocaleDateString(undefined, { weekday: "narrow" }),
+      label: date.toLocaleDateString(INTL_LOCALE[locale], { weekday: "narrow" }),
       played: profile.dailyCompleted.includes(key),
       isToday: i === 6,
     };
@@ -63,9 +69,7 @@ export default function DailyCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-xl">📅</span>
-            <h2 className="text-base font-extrabold text-ink">
-              Daily Challenge
-            </h2>
+            <h2 className="text-base font-extrabold text-ink">{t.title}</h2>
             {/* The number depends on the player's date, so it waits for hydration. */}
             {ready && (
               <span className="tnum rounded-lg bg-surface-3 px-1.5 py-0.5 text-[0.65rem] font-bold text-subtle">
@@ -74,19 +78,19 @@ export default function DailyCard({
             )}
             {showArchiveLink && !embed && (
               <Link
-                href="/daily"
+                href={pathFor({ page: "daily" }, locale)}
                 className="ml-auto text-xs font-semibold text-brand hover:underline"
               >
-                Past dailies →
+                {t.pastDailies}
               </Link>
             )}
           </div>
           <p className="mt-1 text-sm text-muted">
             {done
               ? todaysResult
-                ? `Done — ${todaysResult.correct}/${todaysResult.total} for ${todaysResult.points.toLocaleString()} points.`
-                : "Done for today. Nicely held."
-              : `${DAILY_QUESTION_COUNT} questions, the same for everyone, once a day.`}
+                ? t.done(todaysResult.correct, todaysResult.total, todaysResult.points)
+                : t.doneNoResult
+              : t.pitch(DAILY_QUESTION_COUNT)}
           </p>
 
           {ready && (
@@ -108,7 +112,7 @@ export default function DailyCard({
               ))}
               {profile.dailyStreak > 0 && (
                 <span className="ml-1 text-xs font-bold text-streak-text">
-                  {profile.dailyStreak}-day streak
+                  {t.streak(profile.dailyStreak)}
                 </span>
               )}
             </div>
@@ -118,10 +122,10 @@ export default function DailyCard({
         {done ? (
           <div className="shrink-0 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-center">
             <div className="text-[0.65rem] font-bold uppercase tracking-wider text-subtle">
-              Next in
+              {t.nextIn}
             </div>
             <div className="tnum text-sm font-bold text-ink">
-              {remaining === null ? "—" : formatCountdown(remaining)}
+              {remaining === null ? "—" : ui.common.countdown(...countdownParts(remaining))}
             </div>
           </div>
         ) : (
@@ -133,7 +137,7 @@ export default function DailyCard({
             }}
             className="sheen shrink-0 disabled:opacity-70 rounded-2xl bg-linear-to-r from-brand to-brand-strong px-6 py-3.5 text-sm font-extrabold text-brand-contrast shadow-lift transition hover:brightness-110 active:scale-[0.98]"
           >
-            Play today&apos;s →
+            {t.play}
           </button>
         )}
       </div>

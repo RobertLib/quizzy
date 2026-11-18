@@ -1,5 +1,6 @@
 import type { QuizApiResponse, QuizConfig, QuizQuestion } from "@/types/quiz";
 import type { DailyStats } from "./daily-stats";
+import type { Locale } from "@/i18n/config";
 
 /**
  * Custom quizzes. The route handler always fills the round from our own bank
@@ -8,9 +9,10 @@ import type { DailyStats } from "./daily-stats";
  */
 export async function fetchQuizQuestions(
   amount: number,
-  config: QuizConfig
+  config: QuizConfig,
+  locale: Locale = "en"
 ): Promise<QuizApiResponse> {
-  const params = new URLSearchParams({ amount: amount.toString() });
+  const params = new URLSearchParams({ amount: amount.toString(), lang: locale });
   if (config.difficulty !== "mixed") params.append("difficulty", config.difficulty);
   if (config.categories.length > 0) {
     params.append("categories", config.categories.join(","));
@@ -24,8 +26,11 @@ export async function fetchQuizQuestions(
   return (await response.json()) as QuizApiResponse;
 }
 
-export async function fetchDailyQuiz(key: string): Promise<QuizQuestion[]> {
-  const response = await fetch(`/api/daily/${key}`);
+export async function fetchDailyQuiz(
+  key: string,
+  locale: Locale = "en"
+): Promise<QuizQuestion[]> {
+  const response = await fetch(`/api/daily/${key}?lang=${locale}`);
   if (!response.ok) throw new Error(`Daily returned ${response.status}`);
   const data = (await response.json()) as { questions: QuizQuestion[] };
   return data.questions;

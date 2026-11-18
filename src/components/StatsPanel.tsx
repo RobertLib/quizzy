@@ -7,16 +7,19 @@ import { levelProgress } from "@/lib/scoring";
 import { CATEGORIES } from "@/data/categories";
 import { useSettings } from "./SettingsProvider";
 import { useQuizHost } from "./QuizHost";
+import { useLocale, useUi } from "./LocaleProvider";
+import { formatNumber } from "@/i18n/config";
 
-const CATEGORY_EMOJI = Object.fromEntries(
-  CATEGORIES.map((c) => [c.name, c.emoji])
-);
+const BY_NAME = Object.fromEntries(CATEGORIES.map((c) => [c.name, c]));
 
 export default function StatsPanel() {
   const { fx } = useSettings();
   const { profile, ready } = useQuizHost();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"stats" | "badges">("stats");
+  const locale = useLocale();
+  const ui = useUi();
+  const t = ui.stats;
 
   const unlockedCount = Object.keys(profile.achievements).length;
   const progress = levelProgress(profile.xp);
@@ -51,13 +54,17 @@ export default function StatsPanel() {
       >
         <span className="text-lg">📊</span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold text-ink">Your progress</div>
+          <div className="text-sm font-bold text-ink">{t.title}</div>
           <div className="truncate text-xs text-subtle">
             {fresh
-              ? "Play a quiz to start tracking stats and badges"
-              : `Level ${progress.level} · ${profile.quizzesPlayed} quizzes · ${Math.round(
-                  accuracy * 100
-                )}% accuracy · ${unlockedCount}/${ACHIEVEMENTS.length} badges`}
+              ? t.fresh
+              : t.summary(
+                  progress.level,
+                  profile.quizzesPlayed,
+                  Math.round(accuracy * 100),
+                  unlockedCount,
+                  ACHIEVEMENTS.length
+                )}
           </div>
         </div>
         <span
@@ -80,13 +87,13 @@ export default function StatsPanel() {
                   fx("select");
                   setTab(option);
                 }}
-                className={`rounded-lg px-4 py-1.5 text-xs font-bold capitalize transition ${
+                className={`rounded-lg px-4 py-1.5 text-xs font-bold transition ${
                   tab === option
                     ? "bg-surface text-brand shadow-card"
                     : "text-muted hover:text-ink"
                 }`}
               >
-                {option}
+                {t.tabs[option]}
               </button>
             ))}
           </div>
@@ -95,38 +102,25 @@ export default function StatsPanel() {
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                 <Metric
-                  label="Level"
+                  label={t.level}
                   value={`${progress.level}`}
                   sub={`${progress.xpIntoLevel}/${progress.xpForNextLevel} XP`}
                 />
+                <Metric label={t.quizzes} value={formatNumber(profile.quizzesPlayed, locale)} />
                 <Metric
-                  label="Quizzes"
-                  value={profile.quizzesPlayed.toLocaleString()}
-                />
-                <Metric
-                  label="Accuracy"
-                  value={`${Math.round(accuracy * 100)}%`}
+                  label={t.accuracy}
+                  value={ui.common.percent(Math.round(accuracy * 100))}
                   sub={`${profile.correctAnswers}/${profile.questionsAnswered}`}
                 />
-                <Metric
-                  label="Best streak"
-                  value={`${profile.bestStreak}`}
-                  sub="in a row"
-                />
-                <Metric
-                  label="Total points"
-                  value={profile.totalPoints.toLocaleString()}
-                />
-                <Metric
-                  label="Perfect runs"
-                  value={`${profile.perfectQuizzes}`}
-                />
+                <Metric label={t.bestStreak} value={`${profile.bestStreak}`} sub={t.inARow} />
+                <Metric label={t.totalPoints} value={formatNumber(profile.totalPoints, locale)} />
+                <Metric label={t.perfectRuns} value={`${profile.perfectQuizzes}`} />
               </div>
 
               {categoryRows.length > 0 && (
                 <section>
                   <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-subtle">
-                    Category mastery
+                    {t.mastery}
                   </h4>
                   <div className="space-y-2.5">
                     {categoryRows.map((row) => (
@@ -134,13 +128,13 @@ export default function StatsPanel() {
                         <div className="mb-1 flex items-baseline justify-between text-xs">
                           <span className="font-semibold text-ink">
                             <span className="mr-1" aria-hidden="true">
-                              {CATEGORY_EMOJI[row.name] ?? "•"}
+                              {BY_NAME[row.name]?.emoji ?? "•"}
                             </span>
-                            {row.name}
+                            {BY_NAME[row.name]?.label[locale] ?? row.name}
                           </span>
                           <span className="tnum text-subtle">
                             {row.correct}/{row.answered} ·{" "}
-                            {Math.round(row.accuracy * 100)}%
+                            {ui.common.percent(Math.round(row.accuracy * 100))}
                           </span>
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-surface-3">
@@ -164,7 +158,7 @@ export default function StatsPanel() {
               {profile.history.length > 0 && (
                 <section>
                   <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-subtle">
-                    Recent runs
+                    {t.recentRuns}
                   </h4>
                   <div className="flex items-end gap-1.5">
                     {[...profile.history]
@@ -176,9 +170,12 @@ export default function StatsPanel() {
                         return (
                           <div
                             key={`${entry.date}-${i}`}
-                            title={`${entry.correct}/${entry.total} · ${entry.points} pts${
-                              entry.mode === "daily" ? " · daily" : ""
-                            }`}
+                            title={t.run(
+                              entry.correct,
+                              entry.total,
+                              entry.points,
+                              entry.mode === "daily"
+                            )}
                             className="group flex-1"
                           >
                             <div
@@ -198,8 +195,7 @@ export default function StatsPanel() {
                       })}
                   </div>
                   <p className="mt-1.5 text-[0.7rem] text-subtle">
-                    Accuracy of your last {Math.min(14, profile.history.length)}{" "}
-                    runs
+                    {t.lastRuns(Math.min(14, profile.history.length))}
                   </p>
                 </section>
               )}
@@ -234,14 +230,14 @@ export default function StatsPanel() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span className="truncate text-sm font-bold text-ink">
-                            {achievement.name}
+                            {ui.achievements[achievement.id].name}
                           </span>
                           {unlockedAt && (
                             <span className="text-xs text-ok">✓</span>
                           )}
                         </div>
                         <p className="text-xs text-muted">
-                          {achievement.description}
+                          {ui.achievements[achievement.id].description}
                         </p>
                         {!unlockedAt && progressInfo && (
                           <div className="mt-2">

@@ -55,4 +55,19 @@ describe("shared results", () => {
   it("don't turn a practice replay into a challenge", () => {
     assert.equal(shareUrlFor(session("practice"), answers, 700), `${SITE_URL}/daily/2026-11-13`);
   });
+
+  it("link to the page in the player's language", () => {
+    assert.equal(
+      shareUrlFor(session("daily"), answers, 700, "cs"),
+      `${SITE_URL}/cs/vyzva/2026-11-13/gggrgggg-700`
+    );
+    assert.equal(shareUrlFor(session("practice"), answers, 700, "cs"), `${SITE_URL}/cs/denni/2026-11-13`);
+    const topic: QuizSession = {
+      questions: [],
+      config: { categories: ["Geography"], difficulty: "mixed", amount: 10, timed: true },
+      mode: "custom",
+    };
+    assert.equal(shareUrlFor(topic, [], 0, "cs"), `${SITE_URL}/cs/kvizy/zemepis`);
+    assert.equal(shareUrlFor(topic, [], 0), `${SITE_URL}/trivia/geography`);
+  });
 });

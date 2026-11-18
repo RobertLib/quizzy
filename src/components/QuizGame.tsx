@@ -12,6 +12,10 @@ import {
 } from "@/lib/scoring";
 import { dailyNumber } from "@/lib/daily";
 import { useSettings } from "./SettingsProvider";
+import { useLocale, useUi } from "./LocaleProvider";
+import { categoryLabel } from "@/data/categories";
+import { formatNumber } from "@/i18n/config";
+import { answerLabel, type UiMessages } from "@/i18n/ui";
 import Ring from "./ui/Ring";
 
 export interface FinishedSession {
@@ -50,6 +54,9 @@ export default function QuizGame({
 }: QuizGameProps) {
   const { questions, config, mode, dailyKey } = session;
   const { fx } = useSettings();
+  const locale = useLocale();
+  const ui = useUi();
+  const t = ui.game;
 
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswer[]>([]);
@@ -157,8 +164,9 @@ export default function QuizGame({
         ...prev,
         {
           question: question.question,
-          userAnswer: choice ?? "",
-          correctAnswer: question.correct_answer,
+          // What the player saw — "Pravda", not the stored "True".
+          userAnswer: choice ? answerLabel(choice, question.type, ui) : "",
+          correctAnswer: answerLabel(question.correct_answer, question.type, ui),
           isCorrect,
           category: question.category,
           difficulty: question.difficulty,
@@ -175,7 +183,7 @@ export default function QuizGame({
       else if (kind === "skip") fx("powerup");
       else fx("wrong");
     },
-    [question, revealed, index, streak, timeLimit, timed, fx]
+    [question, revealed, index, streak, timeLimit, timed, fx, ui]
   );
 
   useEffect(() => {
@@ -320,7 +328,7 @@ export default function QuizGame({
   if (!question) {
     return (
       <div className="card mx-auto max-w-3xl p-10 text-center">
-        <p className="text-muted">No questions available.</p>
+        <p className="text-muted">{t.noQuestions}</p>
       </div>
     );
   }
@@ -330,6 +338,7 @@ export default function QuizGame({
   const timeFraction = timed ? Math.max(0, timeLeft / timeLimit) : 1;
   const urgent = timed && timeLeft <= 5;
   const multiplier = streakMultiplier(streak);
+  const correctLabel = answerLabel(question.correct_answer, question.type, ui);
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -338,8 +347,8 @@ export default function QuizGame({
         <button
           onClick={() => setConfirmQuit(true)}
           className="grid size-9 place-items-center rounded-xl text-muted transition hover:bg-surface-3 hover:text-ink"
-          aria-label="Quit quiz"
-          title="Quit quiz"
+          aria-label={t.quit}
+          title={t.quit}
         >
           <svg viewBox="0 0 24 24" className="size-5" fill="none" strokeWidth={2}>
             <path
@@ -354,12 +363,12 @@ export default function QuizGame({
           <div className="min-w-0">
             <div className="text-[0.7rem] font-semibold uppercase tracking-wider text-subtle">
               {mode === "daily"
-                ? "Daily Challenge"
+                ? t.dailyChallenge
                 : dailyKey
-                  ? `Daily #${dailyNumber(dailyKey)}${mode === "practice" ? " · practice" : ""}`
+                  ? t.dailyNumber(dailyNumber(dailyKey), mode === "practice")
                   : mode === "practice"
-                    ? "Practice"
-                    : "Question"}
+                    ? t.practice
+                    : t.question}
             </div>
             <div className="tnum text-sm font-bold text-ink">
               {index + 1}
@@ -371,10 +380,10 @@ export default function QuizGame({
 
           <div className="hidden sm:block">
             <div className="text-[0.7rem] font-semibold uppercase tracking-wider text-subtle">
-              Score
+              {t.score}
             </div>
             <div className="tnum text-sm font-bold text-brand">
-              {points.toLocaleString()}
+              {formatNumber(points, locale)}
             </div>
           </div>
         </div>
@@ -389,7 +398,7 @@ export default function QuizGame({
               {streak}
               {multiplier > 1 && (
                 <span className="ml-1 text-[0.7rem] font-extrabold">
-                  ×{multiplier}
+                  ×{multiplier.toLocaleString(locale)}
                 </span>
               )}
             </span>
@@ -447,18 +456,19 @@ export default function QuizGame({
         <div className="p-5 sm:p-7">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="rounded-lg bg-brand-soft px-2.5 py-1 text-xs font-semibold text-brand">
-              {question.category}
+              {categoryLabel(question.category, locale)}
             </span>
             <span
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold capitalize ${
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
                 DIFFICULTY_STYLE[question.difficulty]
               }`}
             >
-              {question.difficulty} · ×{DIFFICULTY_MULTIPLIER[question.difficulty]}
+              {ui.difficulty[question.difficulty]} · ×
+              {DIFFICULTY_MULTIPLIER[question.difficulty].toLocaleString(locale)}
             </span>
             {answeredCount > 0 && (
               <span className="ml-auto tnum text-xs font-medium text-subtle">
-                {correctCount}/{answeredCount} correct
+                {t.correctSoFar(correctCount, answeredCount)}
               </span>
             )}
           </div>
@@ -480,9 +490,10 @@ export default function QuizGame({
                 </div>
                 {(gain.speedBonus > 0 || gain.streakMultiplier > 1) && (
                   <div className="text-[0.7rem] font-semibold text-ok-text">
-                    {gain.speedBonus > 0 && `speed +${gain.speedBonus}`}
+                    {gain.speedBonus > 0 && t.speedBonus(gain.speedBonus)}
                     {gain.speedBonus > 0 && gain.streakMultiplier > 1 && " · "}
-                    {gain.streakMultiplier > 1 && `×${gain.streakMultiplier}`}
+                    {gain.streakMultiplier > 1 &&
+                      `×${gain.streakMultiplier.toLocaleString(locale)}`}
                   </div>
                 )}
               </div>
@@ -535,7 +546,7 @@ export default function QuizGame({
                       : String.fromCharCode(65 + i)}
                   </span>
                   <span className="flex-1 text-[0.95rem] font-medium sm:text-base">
-                    {option}
+                    {answerLabel(option, question.type, ui)}
                   </span>
                 </button>
               );
@@ -554,22 +565,19 @@ export default function QuizGame({
               <p className="text-sm font-semibold" role="status" aria-live="polite">
                 {answers[answers.length - 1]?.isCorrect ? (
                   <span className="text-ok-text">
-                    Correct! {streak >= 3 && `${streak} in a row 🔥`}
+                    {t.correct} {streak >= 3 && t.inARow(streak)}
                   </span>
                 ) : timedOut ? (
                   <span className="text-bad-text">
-                    Time&apos;s up — the answer was{" "}
-                    {question.correct_answer}
+                    {t.timeUp} {correctLabel}
                   </span>
                 ) : wasSkipped ? (
                   <span className="text-muted">
-                    Skipped — streak kept. Answer:{" "}
-                    {question.correct_answer}
+                    {t.skipped} {correctLabel}
                   </span>
                 ) : (
                   <span className="text-bad-text">
-                    Not quite — it was{" "}
-                    {question.correct_answer}
+                    {t.wrong} {correctLabel}
                   </span>
                 )}
               </p>
@@ -578,7 +586,7 @@ export default function QuizGame({
                 autoFocus
                 className="sheen relative overflow-hidden rounded-2xl bg-brand px-6 py-3 text-sm font-bold text-brand-contrast shadow-lift transition hover:bg-brand-strong active:scale-[0.98]"
               >
-                {isLast ? "See results" : "Next question"}
+                {isLast ? t.seeResults : t.next}
                 <span className="ml-1.5">→</span>
                 {autoAdvances && answers[answers.length - 1]?.isCorrect && (
                   <span className="autoadv absolute inset-x-0 bottom-0 h-0.5 bg-white/70" />
@@ -589,34 +597,34 @@ export default function QuizGame({
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap gap-2">
                 <PowerUpButton
-                  label="50:50"
-                  hint="Remove wrong answers"
+                  label={t.fifty}
+                  hint={t.fiftyHint}
                   emoji="✂️"
                   disabled={used.fifty || question.type === "boolean"}
-                  disabledHint={
-                    used.fifty ? undefined : "50:50 — not for true/false questions"
-                  }
+                  disabledHint={used.fifty ? t.alreadyUsed(t.fifty) : t.fiftyBoolean}
                   onClick={() => activatePowerUp("fifty")}
                 />
                 {timed && (
                   <PowerUpButton
-                    label="+10s"
-                    hint="Buy more time"
+                    label={t.time}
+                    hint={t.timeHint}
                     emoji="⏳"
                     disabled={used.time}
+                    disabledHint={t.alreadyUsed(t.time)}
                     onClick={() => activatePowerUp("time")}
                   />
                 )}
                 <PowerUpButton
-                  label="Skip"
-                  hint="Pass without losing your streak"
+                  label={t.skip}
+                  hint={t.skipHint}
                   emoji="⏭️"
                   disabled={used.skip}
+                  disabledHint={t.alreadyUsed(t.skip)}
                   onClick={() => activatePowerUp("skip")}
                 />
               </div>
               <p className="hidden text-xs text-subtle sm:block">
-                Press{" "}
+                {t.press}{" "}
                 <kbd className="rounded border border-line-strong bg-surface-2 px-1.5 py-0.5 font-sans text-[0.7rem] font-semibold">
                   A
                 </kbd>
@@ -624,7 +632,7 @@ export default function QuizGame({
                 <kbd className="rounded border border-line-strong bg-surface-2 px-1.5 py-0.5 font-sans text-[0.7rem] font-semibold">
                   {String.fromCharCode(64 + options.length)}
                 </kbd>{" "}
-                to answer
+                {t.toAnswer}
               </p>
             </div>
           )}
@@ -634,6 +642,7 @@ export default function QuizGame({
       {/* -------------------------------------------------------- quit dialog */}
       {showQuit && (
         <QuitDialog
+          t={t}
           isDaily={mode === "daily"}
           // The clock keeps running — pausing it would hand out free thinking
           // time — so the dialog says how much is left.
@@ -651,11 +660,13 @@ export default function QuizGame({
 
 /** Native modal dialog: focus is trapped, Escape keeps playing. */
 function QuitDialog({
+  t,
   isDaily,
   secondsLeft,
   onStay,
   onLeave,
 }: {
+  t: UiMessages["game"];
   isDaily: boolean;
   secondsLeft: number | null;
   onStay: () => void;
@@ -684,16 +695,14 @@ function QuitDialog({
         🚪
       </div>
       <h3 id="quit-title" className="mb-2 text-lg font-bold text-ink">
-        Leave this quiz?
+        {t.leaveTitle}
       </h3>
       <p id="quit-description" className="text-sm text-muted">
-        {isDaily
-          ? "Today's daily already counts as played. You can replay it for practice later, but this score won't count."
-          : "Your progress in this round won't be saved."}
+        {isDaily ? t.leaveDaily : t.leaveRound}
       </p>
       {secondsLeft !== null && (
         <p className="tnum mt-3 text-xs font-semibold text-bad-text">
-          ⏱ The clock is still running — {secondsLeft}s left.
+          {t.clockRunning(secondsLeft)}
         </p>
       )}
       <div className="mt-6 flex gap-3">
@@ -701,13 +710,13 @@ function QuitDialog({
           onClick={onStay}
           className="flex-1 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-brand-contrast transition hover:bg-brand-strong"
         >
-          Keep playing
+          {t.keepPlaying}
         </button>
         <button
           onClick={onLeave}
           className="flex-1 rounded-xl border border-line bg-surface-2 px-4 py-2.5 text-sm font-semibold text-muted transition hover:bg-surface-3 hover:text-ink"
         >
-          Leave
+          {t.leave}
         </button>
       </div>
     </dialog>
@@ -726,15 +735,15 @@ function PowerUpButton({
   hint: string;
   emoji: string;
   disabled: boolean;
-  /** Why it's disabled, when that isn't "already used". */
-  disabledHint?: string;
+  /** Why it's disabled. */
+  disabledHint: string;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      title={disabled ? (disabledHint ?? `${label} — already used`) : hint}
+      title={disabled ? disabledHint : hint}
       className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
         disabled
           ? "cursor-not-allowed border-line bg-surface-2 text-subtle opacity-45"

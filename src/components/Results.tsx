@@ -22,8 +22,12 @@ import {
   type DailyStats,
 } from "@/lib/daily-stats";
 import { fetchDailyStats, submitDailyResult } from "@/lib/quiz-api";
-import { SITE_URL } from "@/lib/site";
+import { absoluteUrl } from "@/lib/site";
 import { useSettings } from "./SettingsProvider";
+import { useLocale, useUi } from "./LocaleProvider";
+import { formatNumber } from "@/i18n/config";
+import { pathFor } from "@/i18n/routes";
+import type { UiMessages } from "@/i18n/ui";
 import Confetti from "./Confetti";
 import Ring from "./ui/Ring";
 import GridSquares from "./ui/GridSquares";
@@ -75,6 +79,9 @@ export default function Results({
   onNewQuiz,
 }: ResultsProps) {
   const { fx } = useSettings();
+  const locale = useLocale();
+  const ui = useUi();
+  const t = ui.results;
   const { answers, points, bestStreak } = result;
   const total = answers.length;
   const correct = answers.filter((a) => a.isCorrect).length;
@@ -117,13 +124,11 @@ export default function Results({
 
   const shareText = useMemo(() => {
     const squares = [...grid].map((c) => GRID_EMOJI[c]).join("");
-    const title = session.dailyKey
-      ? `Quizzy Daily #${dailyNumber(session.dailyKey)}`
-      : "Quizzy";
+    const title = session.dailyKey ? t.shareDaily(dailyNumber(session.dailyKey)) : "Quizzy";
     const streakPart = bestStreak >= 3 ? ` · 🔥${bestStreak}` : "";
-    const dare = isChallengeable(session, answers) ? "\nCan you beat me?" : "";
-    return `${title}\n${squares}\n${correct}/${total} · ${points.toLocaleString()} pts${streakPart}${dare}\n${shareUrlFor(session, answers, points)}`;
-  }, [grid, session, answers, correct, total, points, bestStreak]);
+    const dare = isChallengeable(session, answers) ? `\n${t.shareDare}` : "";
+    return `${title}\n${squares}\n${correct}/${total} · ${ui.common.pts(points)}${streakPart}${dare}\n${shareUrlFor(session, answers, points, locale)}`;
+  }, [grid, session, answers, correct, total, points, bestStreak, t, ui, locale]);
 
   // Inside another site's iframe both the share sheet and the clipboard can be
   // blocked, so each step falls through to the next — ending with the text
@@ -166,14 +171,11 @@ export default function Results({
         <div className="relative px-6 py-8 text-center sm:px-10 sm:py-10">
           <div className="animate-pop mb-1 text-5xl">{grade.emoji}</div>
           <h2 className={`text-2xl font-extrabold sm:text-3xl ${grade.tone}`}>
-            {grade.label}
+            {ui.grades[grade.id].label}
           </h2>
-          <p className="mt-1 text-sm text-muted">{grade.blurb}</p>
+          <p className="mt-1 text-sm text-muted">{ui.grades[grade.id].blurb}</p>
           {practice && (
-            <p className="mt-2 text-xs font-semibold text-subtle">
-              Practice round — it doesn&apos;t count towards your stats, XP or
-              badges.
-            </p>
+            <p className="mt-2 text-xs font-semibold text-subtle">{t.practiceNote}</p>
           )}
 
           <div className="mt-7 flex flex-col items-center justify-center gap-6 sm:flex-row sm:gap-10">
@@ -191,30 +193,32 @@ export default function Results({
 
             <div className="grid w-full grid-cols-2 gap-2.5 sm:w-auto sm:min-w-68">
               <StatTile
-                label="Points"
-                value={shownPoints.toLocaleString()}
+                label={t.points}
+                value={formatNumber(shownPoints, locale)}
                 emoji="💰"
                 accent
               />
               <StatTile
-                label="XP earned"
+                label={t.xpEarned}
                 value={practice ? "—" : `+${xpFromPoints(points)}`}
                 emoji="⭐"
               />
+              <StatTile label={t.bestStreak} value={`${bestStreak}`} emoji="🔥" />
               <StatTile
-                label="Best streak"
-                value={`${bestStreak}`}
-                emoji="🔥"
+                label={t.avgTime}
+                value={ui.common.seconds(avgTime.toLocaleString(locale))}
+                emoji="⚡"
               />
-              <StatTile label="Avg. time" value={`${avgTime}s`} emoji="⚡" />
             </div>
           </div>
 
           {showStats && session.mode === "daily" && (
             <p className="animate-rise mt-6 rounded-2xl bg-surface-2 px-4 py-3 text-sm font-semibold text-ink">
-              🌍 Better than{" "}
-              <span className="text-brand">{betterThan(stats, correct)}%</span> of
-              the {stats.plays.toLocaleString()} players today
+              {t.betterThan}{" "}
+              <span className="text-brand">
+                {ui.common.percent(betterThan(stats, correct))}
+              </span>{" "}
+              {t.ofPlayersToday(stats.plays)}
             </p>
           )}
 
@@ -222,7 +226,8 @@ export default function Results({
           <div className="mt-8 text-left">
             <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
               <span className={leveledUp ? "text-gold-text" : "text-muted"}>
-                {leveledUp ? "🎉 Level up! " : ""}Level {levelAfter.level}
+                {leveledUp ? t.levelUp : ""}
+                {t.level(levelAfter.level)}
               </span>
               <span className="tnum text-subtle">
                 {levelAfter.xpIntoLevel} / {levelAfter.xpForNextLevel} XP
@@ -240,6 +245,7 @@ export default function Results({
 
       {session.challenge && (
         <ChallengeVerdict
+          ui={ui}
           challenge={session.challenge}
           correct={correct}
           points={points}
@@ -251,7 +257,7 @@ export default function Results({
       {unlocked.length > 0 && (
         <div className="card animate-rise mb-4 p-5">
           <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-subtle">
-            {unlocked.length === 1 ? "Badge unlocked" : "Badges unlocked"}
+            {t.badgesUnlocked(unlocked.length)}
           </h3>
           <div className="grid gap-2.5 sm:grid-cols-2">
             {unlocked.map((achievement, i) => (
@@ -265,10 +271,10 @@ export default function Results({
                 <span className="text-2xl">{achievement.emoji}</span>
                 <div className="min-w-0">
                   <div className="truncate text-sm font-bold text-ink">
-                    {achievement.name}
+                    {ui.achievements[achievement.id].name}
                   </div>
                   <div className="truncate text-xs text-muted">
-                    {achievement.description}
+                    {ui.achievements[achievement.id].description}
                   </div>
                 </div>
               </div>
@@ -286,18 +292,18 @@ export default function Results({
           }}
           className="sheen rounded-2xl bg-brand px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-lift transition hover:bg-brand-strong active:scale-[0.99]"
         >
-          {replayable ? "Play again ↻" : embed ? "Back ←" : "Pick another quiz →"}
+          {replayable ? t.playAgain : embed ? t.back : t.pickAnother}
         </button>
         <button
           onClick={share}
           className="rounded-2xl border border-line bg-surface px-6 py-3.5 text-sm font-bold text-ink transition hover:border-brand/40 hover:bg-brand-soft active:scale-[0.99]"
         >
-          {shareState === "copied" ? "Copied to clipboard ✓" : "Share result 📋"}
+          {shareState === "copied" ? t.copied : t.share}
         </button>
         {shareState === "manual" && (
           <label className="block sm:col-span-2">
             <span className="mb-1 block text-xs font-semibold text-muted">
-              Sharing is blocked here — copy your result:
+              {t.shareBlocked}
             </span>
             <textarea
               readOnly
@@ -317,19 +323,19 @@ export default function Results({
             }}
             className="rounded-2xl border border-line bg-surface px-6 py-3 text-sm font-semibold text-muted transition hover:border-brand/40 hover:text-ink active:scale-[0.99]"
           >
-            Practise the {misses} you missed 🎯
+            {t.practiseMisses(misses)}
           </button>
         )}
         {embed ? (
           <a
-            href={SITE_URL}
+            href={absoluteUrl(pathFor({ page: "home" }, locale))}
             target="_blank"
             rel="noopener"
             className={`rounded-2xl border border-line bg-surface px-6 py-3 text-center text-sm font-semibold text-muted transition hover:border-brand/40 hover:text-ink ${
               misses > 0 ? "" : "sm:col-span-2"
             }`}
           >
-            More trivia on Quizzy ↗
+            {t.moreOnQuizzy}
           </a>
         ) : replayable && (
           <button
@@ -341,7 +347,7 @@ export default function Results({
               misses > 0 ? "" : "sm:col-span-2"
             }`}
           >
-            Change the setup →
+            {t.changeSetup}
           </button>
         )}
       </div>
@@ -353,7 +359,7 @@ export default function Results({
           className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-surface-2"
         >
           <span className="text-sm font-bold text-ink">
-            Review all {total} questions
+            {t.review(total)}
           </span>
           <span
             className={`text-subtle transition-transform duration-300 ${
@@ -397,21 +403,21 @@ export default function Results({
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       {!answer.isCorrect && (
                         <span className="text-muted">
-                          You:{" "}
+                          {t.you}{" "}
                           <strong className="text-bad-text">
                             {answer.userAnswer || "—"}
                           </strong>
                         </span>
                       )}
                       <span className="text-muted">
-                        Answer:{" "}
+                        {t.answer}{" "}
                         <strong className="text-ok-text">
                           {answer.correctAnswer}
                         </strong>
                       </span>
                       <span className="tnum ml-auto text-subtle">
-                        {showStats && `${percentRight(stats, index)}% got it · `}
-                        {answer.timeSpent}s
+                        {showStats && t.gotIt(percentRight(stats, index))}
+                        {ui.common.seconds(answer.timeSpent.toLocaleString(locale))}
                         {answer.points > 0 && ` · +${answer.points}`}
                       </span>
                     </div>
@@ -489,11 +495,13 @@ function useDailyStats(session: QuizSession, grid: string): DailyStats | null {
 }
 
 function ChallengeVerdict({
+  ui,
   challenge,
   correct,
   points,
   grid,
 }: {
+  ui: UiMessages;
   challenge: Challenge;
   correct: number;
   points: number;
@@ -502,15 +510,24 @@ function ChallengeVerdict({
   const theirs = correctIn(challenge.grid);
   const won = correct > theirs || (correct === theirs && points > challenge.points);
   const tied = correct === theirs && points === challenge.points;
-  const verdict = tied ? "Dead heat 🤝" : won ? "You win! 🏆" : "They win this time 😤";
+  const t = ui.results;
+  const verdict = tied ? t.deadHeat : won ? t.youWin : t.theyWin;
 
   return (
     <div className="card animate-rise mb-4 p-5">
       <h3 className="mb-3 text-center text-lg font-extrabold text-ink">{verdict}</h3>
       <div className="grid grid-cols-2 gap-3 text-center">
-        <ScoreColumn label="You" grid={grid} correct={correct} points={points} highlight={won || tied} />
         <ScoreColumn
-          label="Your friend"
+          ui={ui}
+          label={t.youLabel}
+          grid={grid}
+          correct={correct}
+          points={points}
+          highlight={won || tied}
+        />
+        <ScoreColumn
+          ui={ui}
+          label={t.friendLabel}
           grid={challenge.grid}
           correct={theirs}
           points={challenge.points}
@@ -518,19 +535,21 @@ function ChallengeVerdict({
         />
       </div>
       <p className="mt-3 text-center text-xs text-muted">
-        Share your result to send the challenge back.
+        {t.sendBack}
       </p>
     </div>
   );
 }
 
 function ScoreColumn({
+  ui,
   label,
   grid,
   correct,
   points,
   highlight,
 }: {
+  ui: UiMessages;
   label: string;
   grid: string;
   correct: number;
@@ -547,12 +566,12 @@ function ScoreColumn({
         {label}
       </div>
       <div className="mt-2">
-        <GridSquares grid={grid} />
+        <GridSquares grid={grid} label={ui.common.gridLabel(correct, grid.length)} />
       </div>
       <div className="tnum mt-1 text-base font-extrabold text-ink">
         {correct}/{grid.length}
         <span className="ml-1.5 text-xs font-semibold text-subtle">
-          {points.toLocaleString()} pts
+          {ui.common.pts(points)}
         </span>
       </div>
     </div>

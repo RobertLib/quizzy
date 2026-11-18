@@ -11,3 +11,23 @@ export interface BankQuestion extends QuizQuestion {
   since: string;
   explanation?: string;
 }
+
+/**
+ * One bank question in another language. The English question stays the
+ * source of truth for id, category, difficulty and release date; only the
+ * text is replaced.
+ *
+ * - Multiple choice: `correct_answer` and `incorrect_answers` are required,
+ *   with the wrong answers in the same order as in English.
+ * - True/false: leave both out — the answers stay "True"/"False" and are
+ *   labelled in the player's language by the UI.
+ */
+export interface QuestionTranslation {
+  question: string;
+  correct_answer?: string;
+  incorrect_answers?: string[];
+  explanation?: string;
+}
+
+/** Translations of one category's questions, keyed by question id. */
+export type QuestionTranslations = Record<string, QuestionTranslation>;

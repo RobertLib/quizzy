@@ -1,8 +1,11 @@
 import type { GameMode } from "@/types/quiz";
 import type { Profile } from "./storage";
 import { levelFromXp } from "./scoring";
+import type { UiMessages } from "@/i18n/ui";
 
 export type AchievementTier = "bronze" | "silver" | "gold";
+
+export type AchievementId = keyof UiMessages["achievements"];
 
 export interface SessionContext {
   correct: number;
@@ -15,9 +18,8 @@ export interface SessionContext {
 }
 
 export interface Achievement {
-  id: string;
-  name: string;
-  description: string;
+  /** Also the key of its name and description in the UI text. */
+  id: AchievementId;
   emoji: string;
   tier: AchievementTier;
   /** Optional progress read-out for locked badges. */
@@ -31,8 +33,6 @@ const countedCategories = (profile: Profile) =>
 export const ACHIEVEMENTS: Achievement[] = [
   {
     id: "first-steps",
-    name: "First Steps",
-    description: "Finish your first quiz",
     emoji: "🎒",
     tier: "bronze",
     progress: (p) => ({ current: Math.min(p.quizzesPlayed, 1), target: 1 }),
@@ -40,8 +40,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "regular",
-    name: "Regular",
-    description: "Finish 10 quizzes",
     emoji: "🔥",
     tier: "bronze",
     progress: (p) => ({ current: p.quizzesPlayed, target: 10 }),
@@ -49,8 +47,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "devoted",
-    name: "Devoted",
-    description: "Finish 50 quizzes",
     emoji: "🏅",
     tier: "gold",
     progress: (p) => ({ current: p.quizzesPlayed, target: 50 }),
@@ -58,8 +54,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "century",
-    name: "Century",
-    description: "Answer 100 questions",
     emoji: "💯",
     tier: "bronze",
     progress: (p) => ({ current: p.questionsAnswered, target: 100 }),
@@ -67,8 +61,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "scholar",
-    name: "Scholar",
-    description: "Answer 500 questions",
     emoji: "📚",
     tier: "silver",
     progress: (p) => ({ current: p.questionsAnswered, target: 500 }),
@@ -76,8 +68,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "flawless",
-    name: "Flawless",
-    description: "Score 100% in a quiz",
     emoji: "✨",
     tier: "silver",
     progress: (p) => ({ current: Math.min(p.perfectQuizzes, 1), target: 1 }),
@@ -85,8 +75,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "untouchable",
-    name: "Untouchable",
-    description: "Score 100% five times",
     emoji: "👑",
     tier: "gold",
     progress: (p) => ({ current: p.perfectQuizzes, target: 5 }),
@@ -94,8 +82,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "streak-5",
-    name: "On a Roll",
-    description: "Get 5 correct answers in a row",
     emoji: "🔗",
     tier: "bronze",
     progress: (p) => ({ current: p.bestStreak, target: 5 }),
@@ -103,8 +89,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "streak-10",
-    name: "Unstoppable",
-    description: "Get 10 correct answers in a row",
     emoji: "⚡",
     tier: "silver",
     progress: (p) => ({ current: p.bestStreak, target: 10 }),
@@ -112,8 +96,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "streak-20",
-    name: "Whirlwind",
-    description: "Get 20 correct answers in a row",
     emoji: "🌪️",
     tier: "gold",
     progress: (p) => ({ current: p.bestStreak, target: 20 }),
@@ -121,8 +103,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "quickfire",
-    name: "Quickfire",
-    description: "Answer 10 questions correctly in under 3 seconds",
     emoji: "⏱️",
     tier: "bronze",
     progress: (p) => ({ current: p.fastAnswers, target: 10 }),
@@ -130,8 +110,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "speed-demon",
-    name: "Speed Demon",
-    description: "Answer 50 questions correctly in under 3 seconds",
     emoji: "🚀",
     tier: "silver",
     progress: (p) => ({ current: p.fastAnswers, target: 50 }),
@@ -139,8 +117,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "brainiac",
-    name: "Brainiac",
-    description: "Answer 50 hard questions correctly",
     emoji: "🧠",
     tier: "silver",
     progress: (p) => ({ current: p.hardCorrect, target: 50 }),
@@ -148,8 +124,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "high-roller",
-    name: "High Roller",
-    description: "Bank 3,000 points in a single quiz",
     emoji: "💎",
     tier: "gold",
     progress: (p) => ({ current: p.bestQuizPoints, target: 3000 }),
@@ -157,8 +131,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "purist",
-    name: "Purist",
-    description: "Score 90%+ in a timed quiz without using a power-up",
     emoji: "🎯",
     tier: "silver",
     unlocked: (_p, s) =>
@@ -170,8 +142,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "daily-3",
-    name: "Habit Forming",
-    description: "Keep a 3-day daily streak",
     emoji: "📅",
     tier: "bronze",
     progress: (p) => ({ current: p.dailyStreak, target: 3 }),
@@ -179,8 +149,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "daily-7",
-    name: "Week Strong",
-    description: "Keep a 7-day daily streak",
     emoji: "🗓️",
     tier: "silver",
     progress: (p) => ({ current: p.dailyStreak, target: 7 }),
@@ -188,8 +156,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "daily-30",
-    name: "Iron Will",
-    description: "Keep a 30-day daily streak",
     emoji: "🏆",
     tier: "gold",
     progress: (p) => ({ current: p.dailyStreak, target: 30 }),
@@ -197,8 +163,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "polymath",
-    name: "Polymath",
-    description: "Answer 10+ questions in 6 different categories",
     emoji: "🌍",
     tier: "gold",
     progress: (p) => ({ current: countedCategories(p), target: 6 }),
@@ -206,8 +170,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "level-10",
-    name: "Veteran",
-    description: "Reach level 10",
     emoji: "🎖️",
     tier: "gold",
     progress: (p) => ({ current: levelFromXp(p.xp), target: 10 }),

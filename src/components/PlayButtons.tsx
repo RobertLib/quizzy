@@ -6,21 +6,25 @@ import { correctIn } from "@/lib/challenge";
 import { dailyResultFor, hasPlayedDaily } from "@/lib/storage";
 import { useSettings } from "./SettingsProvider";
 import { useQuizHost } from "./QuizHost";
+import { useLocale, useUi } from "./LocaleProvider";
+import { categoryLabel } from "@/data/categories";
 
 const primary =
   "sheen rounded-2xl bg-linear-to-r from-brand to-brand-strong px-6 py-3.5 text-sm font-extrabold text-brand-contrast shadow-lift transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70";
 const secondary =
   "rounded-2xl border border-line bg-surface px-5 py-3 text-sm font-bold text-ink transition hover:border-brand/40 hover:bg-brand-soft active:scale-[0.98] disabled:opacity-60";
 
-const ROUNDS: { label: string; difficulty: Difficulty | "mixed" }[] = [
-  { label: "Easy round", difficulty: "easy" },
-  { label: "Hard round", difficulty: "hard" },
-];
+const ROUNDS = [
+  { key: "easyRound", difficulty: "easy" },
+  { key: "hardRound", difficulty: "hard" },
+] as const;
 
 /** Starts a 10-question timed round in one category. */
 export function CategoryPlayButtons({ category }: { category: string }) {
   const { fx } = useSettings();
   const { startCustom, isLoading } = useQuizHost();
+  const locale = useLocale();
+  const ui = useUi();
 
   const play = (difficulty: Difficulty | "mixed") => {
     fx("click");
@@ -33,7 +37,7 @@ export function CategoryPlayButtons({ category }: { category: string }) {
   return (
     <div className="flex flex-col gap-2.5 sm:flex-row">
       <button disabled={isLoading} onClick={() => play("mixed")} className={`${primary} sm:flex-1`}>
-        {isLoading ? "Dealing questions…" : `Play 10 ${category} questions →`}
+        {isLoading ? ui.common.dealing : ui.play.categoryRound(categoryLabel(category, locale))}
       </button>
       {ROUNDS.map((round) => (
         <button
@@ -42,7 +46,7 @@ export function CategoryPlayButtons({ category }: { category: string }) {
           onClick={() => play(round.difficulty)}
           className={secondary}
         >
-          {round.label}
+          {ui.play[round.key]}
         </button>
       ))}
     </div>
@@ -56,6 +60,8 @@ export function CategoryPlayButtons({ category }: { category: string }) {
 export function DailyDayPlay({ dateKey }: { dateKey: string }) {
   const { fx } = useSettings();
   const { profile, ready, isLoading, startDaily } = useQuizHost();
+  const t = useUi().play;
+  const loading = useUi().common.loading;
 
   const today = ready ? todayKey() : null;
   const play = () => {
@@ -66,8 +72,7 @@ export function DailyDayPlay({ dateKey }: { dateKey: string }) {
   if (today && dateKey > today) {
     return (
       <p className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-muted">
-        ⏳ This daily hasn&apos;t started in your timezone yet — come back
-        tomorrow.
+        {t.notStartedYet}
       </p>
     );
   }
@@ -79,22 +84,16 @@ export function DailyDayPlay({ dateKey }: { dateKey: string }) {
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <button disabled={isLoading} onClick={play} className={primary}>
-        {isLoading
-          ? "Loading…"
-          : played
-            ? "Replay for practice ↻"
-            : isToday
-              ? "Play today's daily →"
-              : "Play this day →"}
+        {isLoading ? loading : played ? t.replay : isToday ? t.playToday : t.playDay}
       </button>
       <p className="text-xs text-muted">
         {result
-          ? `You scored ${result.correct}/${result.total}${isToday ? " today" : ""} · a replay is practice.`
+          ? t.yourScore(result.correct, result.total, isToday)
           : played
-            ? "You've already started this one — a replay is practice."
+            ? t.alreadyStarted
             : isToday
-              ? `${DAILY_QUESTION_COUNT} questions · counts towards your daily streak`
-              : `${DAILY_QUESTION_COUNT} questions · earns XP, doesn't count towards your streak`}
+              ? t.countsToStreak(DAILY_QUESTION_COUNT)
+              : t.earnsXp(DAILY_QUESTION_COUNT)}
       </p>
     </div>
   );
@@ -110,6 +109,8 @@ export function ChallengePlay({
 }) {
   const { fx } = useSettings();
   const { profile, ready, isLoading, startDaily } = useQuizHost();
+  const t = useUi().play;
+  const loading = useUi().common.loading;
 
   const theirs = correctIn(challenge.grid);
   const today = ready ? todayKey() : null;
@@ -123,10 +124,7 @@ export function ChallengePlay({
 
   if (today && dateKey > today) {
     return (
-      <p className="text-sm text-muted">
-        ⏳ Your friend is a day ahead of you — this daily unlocks at midnight
-        your time.
-      </p>
+      <p className="text-sm text-muted">{t.friendAhead}</p>
     );
   }
 
@@ -137,12 +135,11 @@ export function ChallengePlay({
     return (
       <div className="space-y-3">
         <p className="text-base font-bold text-ink">
-          You already played this one: {mine.correct}/{mine.total} ·{" "}
-          {mine.points.toLocaleString()} pts —{" "}
-          {tied ? "a dead heat 🤝" : won ? "you win 🏆" : "they win 😤"}
+          {t.alreadyPlayed(mine.correct, mine.total, mine.points)}
+          {tied ? t.deadHeat : won ? t.youWin : t.theyWin}
         </p>
         <button disabled={isLoading} onClick={play} className={secondary}>
-          Replay for practice ↻
+          {t.replay}
         </button>
       </div>
     );
@@ -150,11 +147,7 @@ export function ChallengePlay({
 
   return (
     <button disabled={isLoading} onClick={play} className={`${primary} w-full sm:w-auto`}>
-      {isLoading
-        ? "Loading…"
-        : played
-          ? "Play it for practice →"
-          : "Accept the challenge →"}
+      {isLoading ? loading : played ? t.practice : t.accept}
     </button>
   );
 }

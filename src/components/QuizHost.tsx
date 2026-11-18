@@ -35,6 +35,7 @@ import QuizGame, { type FinishedSession } from "./QuizGame";
 import Results from "./Results";
 import HeaderBar from "./HeaderBar";
 import { useSettings } from "./SettingsProvider";
+import { useLocale, useUi } from "./LocaleProvider";
 
 interface ResultState {
   result: FinishedSession;
@@ -94,6 +95,8 @@ export default function QuizHost({
   const pathname = usePathname();
   const router = useRouter();
   const { settings, toggleSound } = useSettings();
+  const locale = useLocale();
+  const ui = useUi();
 
   // Shared with other tabs: a round finished elsewhere shows up here too.
   const stored = useSyncExternalStore(subscribeProfile, loadProfile, serverProfile);
@@ -136,12 +139,12 @@ export default function QuizHost({
       setIsLoading(true);
       setError(null);
       try {
-        const data = await fetchQuizQuestions(config.amount, config);
+        const data = await fetchQuizQuestions(config.amount, config, locale);
         if (pathRef.current !== from) return;
         if (!data.results.length) {
           setError({
             path: from,
-            message: "No questions matched that combination. Try widening it.",
+            message: ui.host.noQuestions,
           });
           return;
         }
@@ -158,13 +161,13 @@ export default function QuizHost({
       } catch {
         setError({
           path: from,
-          message: "Couldn't load questions. Check your connection and try again.",
+          message: ui.host.loadFailed,
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [pathname]
+    [pathname, locale, ui]
   );
 
   const startDaily = useCallback(
@@ -173,7 +176,7 @@ export default function QuizHost({
       setIsLoading(true);
       setError(null);
       try {
-        const questions = await fetchDailyQuiz(key);
+        const questions = await fetchDailyQuiz(key, locale);
         if (pathRef.current !== from) return;
 
         // Read storage afresh: another tab may have played it meanwhile.
@@ -214,13 +217,13 @@ export default function QuizHost({
       } catch {
         setError({
           path: from,
-          message: "Couldn't load the daily. Check your connection and try again.",
+          message: ui.host.dailyFailed,
         });
       } finally {
         setIsLoading(false);
       }
     },
-    [embed, pathname]
+    [embed, pathname, locale, ui]
   );
 
   const handleFinish = useCallback(
@@ -351,8 +354,8 @@ export default function QuizHost({
               onClick={toggleSound}
               role="switch"
               aria-checked={settings.sound}
-              aria-label="Sound effects"
-              title={settings.sound ? "Mute sound effects" : "Turn sound effects on"}
+              aria-label={ui.host.sound}
+              title={settings.sound ? ui.host.mute : ui.host.unmute}
               className="grid size-8 place-items-center rounded-lg text-sm text-muted ring-1 ring-line transition hover:bg-surface hover:text-ink"
             >
               <span aria-hidden="true">{settings.sound ? "🔊" : "🔇"}</span>

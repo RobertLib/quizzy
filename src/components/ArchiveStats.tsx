@@ -9,10 +9,14 @@ import {
   type DailyStats,
 } from "@/lib/daily-stats";
 import { DAILY_QUESTION_COUNT } from "@/lib/daily";
+import { useLocale, useUi } from "./LocaleProvider";
+import { INTL_LOCALE } from "@/i18n/config";
 
 /** How everyone did on the day — shown only once enough people played. */
 export default function ArchiveStats({ dateKey }: { dateKey: string }) {
   const [stats, setStats] = useState<DailyStats | null>(null);
+  const locale = useLocale();
+  const t = useUi().archiveStats;
 
   useEffect(() => {
     let cancelled = false;
@@ -33,13 +37,15 @@ export default function ArchiveStats({ dateKey }: { dateKey: string }) {
 
   return (
     <p className="animate-rise mb-4 rounded-2xl border border-line bg-surface-2 px-4 py-3 text-sm text-muted">
-      🌍 {stats.plays.toLocaleString()} players took this daily on the day and
-      averaged{" "}
+      {t.before(stats.plays)}
       <strong className="text-ink">
-        {averageCorrect(stats).toFixed(1)}/{DAILY_QUESTION_COUNT}
+        {averageCorrect(stats).toLocaleString(INTL_LOCALE[locale], {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })}
+        /{DAILY_QUESTION_COUNT}
       </strong>
-      . The hardest was question #{hardest + 1} — only {percents[hardest]}% got
-      it right.
+      {t.after(hardest + 1, percents[hardest])}
     </p>
   );
 }

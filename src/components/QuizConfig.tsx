@@ -7,31 +7,28 @@ import { useHydrated } from "@/lib/client-state";
 import { CATEGORIES } from "@/data/categories";
 import { useSettings } from "./SettingsProvider";
 import { useQuizHost } from "./QuizHost";
+import { useLocale, useUi } from "./LocaleProvider";
+import { categoryLabel } from "@/data/categories";
 
 const DIFFICULTIES: {
   value: Difficulty | "mixed";
-  label: string;
   emoji: string;
 }[] = [
-  { value: "mixed", label: "Mixed", emoji: "🎲" },
-  { value: "easy", label: "Easy", emoji: "🌱" },
-  { value: "medium", label: "Medium", emoji: "🔥" },
-  { value: "hard", label: "Hard", emoji: "💀" },
+  { value: "mixed", emoji: "🎲" },
+  { value: "easy", emoji: "🌱" },
+  { value: "medium", emoji: "🔥" },
+  { value: "hard", emoji: "💀" },
 ];
 
 const LENGTHS = [5, 10, 15, 20, 30];
 
 const PRESETS: {
-  id: string;
-  label: string;
-  sub: string;
+  id: "blitz" | "classic" | "brutal" | "surprise";
   emoji: string;
   build: () => QuizConfig;
 }[] = [
   {
     id: "blitz",
-    label: "Blitz",
-    sub: "5 questions · timed",
     emoji: "⚡",
     build: () => ({
       categories: [],
@@ -42,8 +39,6 @@ const PRESETS: {
   },
   {
     id: "classic",
-    label: "Classic",
-    sub: "10 questions · timed",
     emoji: "🎯",
     build: () => ({
       categories: [],
@@ -54,8 +49,6 @@ const PRESETS: {
   },
   {
     id: "brutal",
-    label: "Brutal",
-    sub: "10 hard · timed",
     emoji: "💀",
     build: () => ({
       categories: [],
@@ -66,8 +59,6 @@ const PRESETS: {
   },
   {
     id: "surprise",
-    label: "Surprise me",
-    sub: "Random everything",
     emoji: "🎁",
     build: () => {
       const shuffled = [...CATEGORIES].sort(() => Math.random() - 0.5);
@@ -118,6 +109,9 @@ export default function QuizConfigPanel() {
   const { startCustom, isLoading } = useQuizHost();
   const hydrated = useHydrated();
   const [showCustom, setShowCustom] = useState(false);
+  const locale = useLocale();
+  const ui = useUi();
+  const t = ui.config;
 
   // The saved config is the baseline; edits in this session override it.
   const saved = useMemo(
@@ -158,10 +152,10 @@ export default function QuizConfigPanel() {
 
   const selectedLabel =
     config.categories.length === 0
-      ? "All categories"
+      ? t.allCategories
       : config.categories.length === 1
-      ? config.categories[0]
-      : `${config.categories.length} categories`;
+      ? categoryLabel(config.categories[0], locale)
+      : t.someCategories(config.categories.length);
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -178,10 +172,10 @@ export default function QuizConfigPanel() {
               {preset.emoji}
             </span>
             <span className="mt-1 text-sm font-bold text-ink">
-              {preset.label}
+              {t.presets[preset.id].label}
             </span>
             <span className="text-[0.7rem] font-medium text-subtle">
-              {preset.sub}
+              {t.presets[preset.id].sub}
             </span>
           </button>
         ))}
@@ -198,10 +192,10 @@ export default function QuizConfigPanel() {
           aria-expanded={showCustom}
         >
           <div className="min-w-0">
-            <div className="text-sm font-bold text-ink">Build your own</div>
+            <div className="text-sm font-bold text-ink">{t.buildYourOwn}</div>
             <div className="truncate text-xs text-subtle">
-              {selectedLabel} · {config.difficulty} · {config.amount} questions ·{" "}
-              {config.timed ? "timed" : "relaxed"}
+              {selectedLabel} · {ui.difficulty[config.difficulty].toLocaleLowerCase(locale)} ·{" "}
+              {t.questions(config.amount)} · {config.timed ? t.timed : t.relaxed}
             </div>
           </div>
           <span
@@ -219,13 +213,13 @@ export default function QuizConfigPanel() {
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-subtle">
-                  Categories
+                  {t.categories}
                 </h3>
                 <button
                   onClick={() => patch({ categories: [] })}
                   className="text-xs font-semibold text-brand transition hover:underline"
                 >
-                  Use all
+                  {t.useAll}
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -243,14 +237,14 @@ export default function QuizConfigPanel() {
                       }`}
                     >
                       <span aria-hidden="true">{category.emoji}</span>
-                      {category.name}
+                      {category.label[locale]}
                     </button>
                   );
                 })}
               </div>
               {config.categories.length === 0 && (
                 <p className="mt-2.5 text-xs text-subtle">
-                  Nothing picked — questions come from every category.
+                  {t.nothingPicked}
                 </p>
               )}
             </section>
@@ -258,7 +252,7 @@ export default function QuizConfigPanel() {
             {/* difficulty */}
             <section>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-subtle">
-                Difficulty
+                {t.difficulty}
               </h3>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {DIFFICULTIES.map((option) => {
@@ -277,7 +271,7 @@ export default function QuizConfigPanel() {
                       <span className="mr-1" aria-hidden="true">
                         {option.emoji}
                       </span>
-                      {option.label}
+                      {ui.difficulty[option.value]}
                     </button>
                   );
                 })}
@@ -287,7 +281,7 @@ export default function QuizConfigPanel() {
             {/* length */}
             <section>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-subtle">
-                Length
+                {t.length}
               </h3>
               <div className="flex flex-wrap gap-2">
                 {LENGTHS.map((length) => {
@@ -313,22 +307,22 @@ export default function QuizConfigPanel() {
             {/* pace */}
             <section>
               <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-subtle">
-                Pace
+                {t.pace}
               </h3>
               <div className="grid gap-2 sm:grid-cols-2">
                 <PaceOption
                   active={config.timed}
                   onClick={() => patch({ timed: true })}
                   emoji="⏱️"
-                  title="Timed"
-                  desc="Countdown per question, speed bonus points"
+                  title={t.timedTitle}
+                  desc={t.timedDesc}
                 />
                 <PaceOption
                   active={!config.timed}
                   onClick={() => patch({ timed: false })}
                   emoji="🧘"
-                  title="Relaxed"
-                  desc="No clock — think as long as you like"
+                  title={t.relaxedTitle}
+                  desc={t.relaxedDesc}
                 />
               </div>
             </section>
@@ -345,11 +339,11 @@ export default function QuizConfigPanel() {
         {isLoading ? (
           <>
             <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            Dealing questions…
+            {ui.common.dealing}
           </>
         ) : (
           <>
-            Start {config.amount} questions
+            {t.start(config.amount)}
             <span aria-hidden="true">→</span>
           </>
         )}

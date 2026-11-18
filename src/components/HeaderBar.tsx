@@ -5,6 +5,9 @@ import Link from "next/link";
 import { levelProgress } from "@/lib/scoring";
 import type { Profile } from "@/lib/storage";
 import { useSettings } from "./SettingsProvider";
+import { useLocale, useUi } from "./LocaleProvider";
+import LanguageSwitch from "./LanguageSwitch";
+import { pathFor } from "@/i18n/routes";
 
 interface HeaderBarProps {
   profile: Profile;
@@ -13,11 +16,6 @@ interface HeaderBarProps {
   /** Called for every header link; may cancel it to confirm leaving a round. */
   onNavigate: (event: React.MouseEvent<HTMLAnchorElement>, href: string) => void;
 }
-
-const NAV = [
-  { href: "/daily", label: "Daily" },
-  { href: "/trivia", label: "Topics" },
-];
 
 export default function HeaderBar({
   profile,
@@ -30,6 +28,14 @@ export default function HeaderBar({
   const [open, setOpen] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const locale = useLocale();
+  const ui = useUi();
+  const t = ui.header;
+  const home = pathFor({ page: "home" }, locale);
+  const nav = [
+    { href: pathFor({ page: "daily" }, locale), label: t.daily, short: t.dailyShort },
+    { href: pathFor({ page: "topics" }, locale), label: t.topics, short: t.topics },
+  ];
 
   const progress = levelProgress(profile.xp);
 
@@ -53,8 +59,8 @@ export default function HeaderBar({
     <header className="sticky top-0 z-40 border-b border-line/70 bg-bg/80 backdrop-blur-xl">
       <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5">
         <Link
-          href="/"
-          onClick={(event) => onNavigate(event, "/")}
+          href={home}
+          onClick={(event) => onNavigate(event, home)}
           className="flex items-center gap-2"
         >
           <span className="grid size-8 place-items-center rounded-xl bg-linear-to-br from-brand to-streak text-base shadow-card">
@@ -65,15 +71,22 @@ export default function HeaderBar({
           </span>
         </Link>
 
-        <nav aria-label="Main" className="ml-1 flex items-center gap-0.5 sm:ml-3">
-          {NAV.map((item) => (
+        <nav aria-label={t.mainNav} className="ml-1 flex items-center gap-0.5 sm:ml-3">
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               onClick={(event) => onNavigate(event, item.href)}
-              className="rounded-lg px-2 py-1.5 text-xs font-semibold text-muted transition hover:bg-surface hover:text-ink sm:text-sm"
+              className="whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-semibold text-muted transition hover:bg-surface hover:text-ink sm:text-sm"
             >
-              {item.label}
+              {item.short === item.label ? (
+                item.label
+              ) : (
+                <>
+                  <span className="sm:hidden">{item.short}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
+                </>
+              )}
             </Link>
           ))}
         </nav>
@@ -82,7 +95,7 @@ export default function HeaderBar({
           {ready && profile.dailyStreak > 0 && (
             <div
               className="flex items-center gap-1 rounded-xl bg-streak/10 px-2 py-1.5 ring-1 ring-streak/25"
-              title={`${profile.dailyStreak}-day daily streak`}
+              title={t.dailyStreak(profile.dailyStreak)}
             >
               <span className="text-sm leading-none">🔥</span>
               <span className="tnum text-xs font-bold text-streak-text">
@@ -94,10 +107,10 @@ export default function HeaderBar({
           {ready && (
             <div
               className="hidden items-center gap-2 rounded-xl bg-surface px-2.5 py-1.5 ring-1 ring-line sm:flex"
-              title={`${progress.xpIntoLevel} / ${progress.xpForNextLevel} XP to level ${progress.level + 1}`}
+              title={t.xpToNext(progress.xpIntoLevel, progress.xpForNextLevel, progress.level + 1)}
             >
               <span className="text-xs font-bold text-brand">
-                Lv {progress.level}
+                {t.levelShort(progress.level)}
               </span>
               <span className="h-1.5 w-16 overflow-hidden rounded-full bg-surface-3">
                 <span
@@ -108,13 +121,15 @@ export default function HeaderBar({
             </div>
           )}
 
+          <LanguageSwitch variant="header" onNavigate={onNavigate} />
+
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => {
                 fx("click");
                 setOpen((v) => !v);
               }}
-              aria-label="Settings"
+              aria-label={t.settings}
               aria-expanded={open}
               className="grid size-9 place-items-center rounded-xl text-muted ring-1 ring-line transition hover:bg-surface hover:text-ink"
             >
@@ -134,14 +149,14 @@ export default function HeaderBar({
             {open && (
               <div className="card animate-flyin absolute right-0 mt-2 w-64 overflow-hidden p-2">
                 <div className="px-2 pb-1.5 pt-1 text-[0.7rem] font-bold uppercase tracking-wider text-subtle">
-                  Appearance
+                  {t.appearance}
                 </div>
                 <div className="mb-2 grid grid-cols-3 gap-1 rounded-xl bg-surface-2 p-1">
                   {(["light", "system", "dark"] as const).map((option) => (
                     <button
                       key={option}
                       aria-pressed={settings.theme === option}
-                      aria-label={`${option} theme`}
+                      aria-label={t.themeLabel(t.themes[option])}
                       onClick={() => {
                         fx("select");
                         setTheme(option);
@@ -153,19 +168,19 @@ export default function HeaderBar({
                       }`}
                     >
                       {option === "light" ? "☀️" : option === "dark" ? "🌙" : "💻"}
-                      <span className="ml-1 hidden sm:inline">{option}</span>
+                      <span className="ml-1 hidden sm:inline">{t.themes[option]}</span>
                     </button>
                   ))}
                 </div>
 
                 <ToggleRow
-                  label="Sound effects"
+                  label={t.sound}
                   emoji="🔊"
                   checked={settings.sound}
                   onChange={toggleSound}
                 />
                 <ToggleRow
-                  label="Vibration"
+                  label={t.vibration}
                   emoji="📳"
                   checked={settings.haptics}
                   onChange={toggleHaptics}
@@ -175,7 +190,7 @@ export default function HeaderBar({
                   {confirmReset ? (
                     <div className="px-2 pb-1">
                       <p className="mb-2 text-xs text-muted">
-                        Delete all stats, XP and badges?
+                        {t.resetQuestion}
                       </p>
                       <div className="flex gap-2">
                         <button
@@ -186,13 +201,13 @@ export default function HeaderBar({
                           }}
                           className="flex-1 rounded-lg bg-bad px-2 py-1.5 text-xs font-bold text-white"
                         >
-                          Delete
+                          {t.delete}
                         </button>
                         <button
                           onClick={() => setConfirmReset(false)}
                           className="flex-1 rounded-lg bg-surface-2 px-2 py-1.5 text-xs font-semibold text-muted"
                         >
-                          Cancel
+                          {t.cancel}
                         </button>
                       </div>
                     </div>
@@ -201,13 +216,13 @@ export default function HeaderBar({
                       onClick={() => setConfirmReset(true)}
                       className="w-full rounded-lg px-2 py-2 text-left text-xs font-semibold text-muted transition hover:bg-bad-soft hover:text-bad-text"
                     >
-                      🗑️ Reset progress
+                      🗑️ {t.reset}
                     </button>
                   )}
                 </div>
 
                 <p className="px-2 pt-1.5 text-[0.65rem] text-subtle">
-                  Theme: {resolvedTheme}. Progress is stored on this device only.
+                  {t.footnote(t.themes[resolvedTheme])}
                 </p>
               </div>
             )}

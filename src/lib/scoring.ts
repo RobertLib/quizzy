@@ -104,54 +104,21 @@ export function levelProgress(xp: number): LevelProgress {
   };
 }
 
+export type GradeId = "flawless" | "brilliant" | "sharp" | "solid" | "warmingUp" | "rough";
+
 export interface Grade {
-  label: string;
-  blurb: string;
+  /** Key into the UI text's `grades`. */
+  id: GradeId;
   emoji: string;
   /** Tailwind text colour class. */
   tone: string;
 }
 
 export function gradeFor(accuracy: number, perfect: boolean): Grade {
-  if (perfect)
-    return {
-      label: "Flawless",
-      blurb: "Every single one. Untouchable.",
-      emoji: "👑",
-      tone: "text-gold-text",
-    };
-  if (accuracy >= 0.9)
-    return {
-      label: "Brilliant",
-      blurb: "Almost perfect — one more run?",
-      emoji: "🌟",
-      tone: "text-gold-text",
-    };
-  if (accuracy >= 0.75)
-    return {
-      label: "Sharp",
-      blurb: "Strong round. The hard ones are calling.",
-      emoji: "🎯",
-      tone: "text-brand",
-    };
-  if (accuracy >= 0.5)
-    return {
-      label: "Solid",
-      blurb: "Halfway to mastery. Keep going.",
-      emoji: "💪",
-      tone: "text-brand",
-    };
-  if (accuracy >= 0.25)
-    return {
-      label: "Warming up",
-      blurb: "Every miss is a fact you now own.",
-      emoji: "🌱",
-      tone: "text-muted",
-    };
-  return {
-    label: "Rough round",
-    blurb: "Shake it off — replay the misses.",
-    emoji: "🎲",
-    tone: "text-muted",
-  };
+  if (perfect) return { id: "flawless", emoji: "👑", tone: "text-gold-text" };
+  if (accuracy >= 0.9) return { id: "brilliant", emoji: "🌟", tone: "text-gold-text" };
+  if (accuracy >= 0.75) return { id: "sharp", emoji: "🎯", tone: "text-brand" };
+  if (accuracy >= 0.5) return { id: "solid", emoji: "💪", tone: "text-brand" };
+  if (accuracy >= 0.25) return { id: "warmingUp", emoji: "🌱", tone: "text-muted" };
+  return { id: "rough", emoji: "🎲", tone: "text-muted" };
 }

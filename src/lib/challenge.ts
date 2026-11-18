@@ -1,6 +1,8 @@
 import type { Challenge, QuizAnswer, QuizSession } from "@/types/quiz";
 import { DAILY_QUESTION_COUNT } from "./daily";
 import { categoryByName } from "@/data/categories";
+import type { Locale } from "@/i18n/config";
+import { pathFor } from "@/i18n/routes";
 import { absoluteUrl } from "./site";
 import {
   BASE_POINTS,
@@ -50,8 +52,15 @@ export function parseChallenge(segment: string): Challenge | null {
   return { grid, points };
 }
 
-export function challengePath(key: string, challenge: Challenge): string {
-  return `/c/${key}/${challenge.grid}-${challenge.points}`;
+export function challengePath(
+  key: string,
+  challenge: Challenge,
+  locale: Locale = "en"
+): string {
+  return pathFor(
+    { page: "challenge", date: key, result: `${challenge.grid}-${challenge.points}` },
+    locale
+  );
 }
 
 export const GRID_EMOJI: Record<string, string> = { g: "🟩", y: "🟨", r: "🟥" };
@@ -71,17 +80,22 @@ export function isChallengeable(session: QuizSession, answers: QuizAnswer[]): bo
  * (as a head-to-head challenge, or just the day after a practice replay), or
  * the topic page the quiz was about.
  */
-export function shareUrlFor(session: QuizSession, answers: QuizAnswer[], points: number): string {
+export function shareUrlFor(
+  session: QuizSession,
+  answers: QuizAnswer[],
+  points: number,
+  locale: Locale = "en"
+): string {
   if (session.dailyKey) {
     return absoluteUrl(
       isChallengeable(session, answers)
-        ? challengePath(session.dailyKey, { grid: gridOf(answers), points })
-        : `/daily/${session.dailyKey}`
+        ? challengePath(session.dailyKey, { grid: gridOf(answers), points }, locale)
+        : pathFor({ page: "day", date: session.dailyKey }, locale)
     );
   }
   if (session.config.categories.length === 1) {
     const category = categoryByName(session.config.categories[0]);
-    if (category) return absoluteUrl(`/trivia/${category.slug}`);
+    if (category) return absoluteUrl(pathFor({ page: "topic", category }, locale));
   }
-  return absoluteUrl("/");
+  return absoluteUrl(pathFor({ page: "home" }, locale));
 }

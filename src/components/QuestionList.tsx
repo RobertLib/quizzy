@@ -1,4 +1,8 @@
 import type { QuizQuestion } from "@/types/quiz";
+import { categoryLabel } from "@/data/categories";
+import type { Locale } from "@/i18n/config";
+import { PAGES } from "@/i18n/pages";
+import { UI, answerLabel } from "@/i18n/ui";
 
 const DIFFICULTY_STYLE = {
   easy: "bg-ok-soft text-ok-text",
@@ -23,11 +27,13 @@ function optionsFor(question: QuizQuestion): string[] {
  * themselves, while the text stays in the HTML for search engines.
  */
 export default function QuestionList({
+  locale,
   questions,
   showCategory = false,
   start = 1,
   headingLevel = 3,
 }: {
+  locale: Locale;
   questions: QuizQuestion[];
   showCategory?: boolean;
   start?: number;
@@ -35,6 +41,8 @@ export default function QuestionList({
   headingLevel?: 3 | 4;
 }) {
   const Heading = headingLevel === 4 ? "h4" : "h3";
+  const t = PAGES[locale].questionList;
+  const ui = UI[locale];
   return (
     <ol className="space-y-2.5" start={start}>
       {questions.map((question, index) => (
@@ -43,13 +51,13 @@ export default function QuestionList({
             <span className="tnum text-subtle">#{start + index}</span>
             {showCategory && (
               <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-brand">
-                {question.category}
+                {categoryLabel(question.category, locale)}
               </span>
             )}
             <span
-              className={`rounded-md px-1.5 py-0.5 capitalize ${DIFFICULTY_STYLE[question.difficulty]}`}
+              className={`rounded-md px-1.5 py-0.5 ${DIFFICULTY_STYLE[question.difficulty]}`}
             >
-              {question.difficulty}
+              {ui.difficulty[question.difficulty]}
             </span>
           </div>
           <Heading className="text-[0.95rem] font-semibold leading-snug text-ink">
@@ -59,16 +67,19 @@ export default function QuestionList({
             {optionsFor(question).map((option, i) => (
               <li key={option} className="rounded-lg border border-line bg-surface-2 px-2 py-1">
                 <span className="font-bold text-subtle">{String.fromCharCode(65 + i)}</span>{" "}
-                {option}
+                {answerLabel(option, question.type, ui)}
               </li>
             ))}
           </ul>
           <details className="mt-3">
             <summary className="w-fit cursor-pointer list-none text-xs font-bold text-brand hover:underline">
-              Show answer
+              {t.showAnswer}
             </summary>
             <p className="mt-2 text-sm text-ink">
-              Answer: <strong className="text-ok-text">{question.correct_answer}</strong>
+              {t.answer}{" "}
+              <strong className="text-ok-text">
+                {answerLabel(question.correct_answer, question.type, ui)}
+              </strong>
             </p>
             {question.explanation && (
               <p className="mt-1 text-sm leading-relaxed text-muted">{question.explanation}</p>

@@ -9,6 +9,14 @@ const nextConfig: NextConfig = {
    * visited for days show today's answers to its next visitor.
    */
   expireTime: 12 * 3600,
+  experimental: {
+    /**
+     * Each language has its own root layout, so there is no app-wide layout
+     * for an unmatched URL's 404 — app/global-not-found.tsx stands in for it.
+     * Unmatched /cs/… paths are caught by app/(cs)/cs/[...missing] instead.
+     */
+    globalNotFound: true,
+  },
 };
 
 export default nextConfig;
